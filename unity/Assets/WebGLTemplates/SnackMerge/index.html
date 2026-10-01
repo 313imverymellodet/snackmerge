@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>SNACK MERGE — drop, match, merge!</title>
+  <meta name="description" content="Drop snacks into the jar and merge two of a kind into bigger ones - cherries to watermelon. Daily jar challenge and world leaderboards. Free, no download.">
+  <meta name="theme-color" content="#fff1e4">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="SNACK MERGE — drop, match, merge!">
+  <meta property="og:description" content="Merge snacks all the way to a watermelon. Beat today's daily jar - free, no download.">
+  <meta property="og:image" content="__SITE_URL__/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="__SITE_URL__/og.png">
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #fff1e4; touch-action: none; overscroll-behavior: none;
+      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #5a3a2a; }
+    #unity-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; background: #fff1e4; outline: none; }
+    #loader { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 5;
+      background: radial-gradient(circle at 50% 38%, #ffffff 0%, #ffe3cc 70%); transition: opacity .5s; overflow: hidden; }
+    #loader.done { opacity: 0; pointer-events: none; }
+    .jar { position: relative; width: 150px; height: 150px; border: 10px solid #c98b5b; border-top: 0; border-radius: 0 0 26px 26px; background: #fff7ec; overflow: hidden; box-shadow: 0 10px 30px rgba(201,139,91,.35); }
+    .ld { position: absolute; border-radius: 50%; animation: fall 2.4s cubic-bezier(.5,0,.75,0) infinite; }
+    .ld1 { width: 34px; height: 34px; left: 18px; background: #ff4d5e; animation-delay: 0s; }
+    .ld2 { width: 46px; height: 46px; left: 62px; background: #ffe14d; animation-delay: .5s; }
+    .ld3 { width: 40px; height: 40px; left: 86px; background: #7ed957; animation-delay: 1s; }
+    .ld4 { width: 58px; height: 58px; left: 30px; background: #ff9a2e; animation-delay: 1.5s; }
+    @keyframes fall { 0% { top: -70px; } 55% { top: calc(100% - 60px); } 62% { top: calc(100% - 66px); } 70%, 100% { top: calc(100% - 60px); opacity: 1; } }
+    h1 { margin: 26px 0 4px; font-size: 52px; font-weight: 900; font-style: italic; letter-spacing: 3px; color: #ff5e7e; text-shadow: 0 6px 0 #c98b5b; }
+    .tag { opacity: .75; font-weight: 800; letter-spacing: 3px; font-size: 13px; }
+    .bar { width: 240px; height: 10px; border-radius: 10px; background: rgba(90,58,42,.14); margin-top: 28px; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffb833, #ff5e7e); transition: width .2s; border-radius: 10px; }
+    #err { display: none; max-width: 320px; text-align: center; margin-top: 18px; font-size: 14px; opacity: .85; }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="loader">
+    <div class="jar"><div class="ld ld1"></div><div class="ld ld2"></div><div class="ld ld3"></div><div class="ld ld4"></div></div>
+    <h1>SNACK MERGE</h1>
+    <div class="tag">DROP · MATCH · MERGE</div>
+    <div class="bar"><i id="fill"></i></div>
+    <div id="err"></div>
+  </div>
+  <div id="toast" style="position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:#5a3a2a;color:#fff7ec;font-weight:800;padding:12px 20px;border-radius:999px;opacity:0;transition:opacity .25s;z-index:30;pointer-events:none"></div>
+  <script>
+    // ---- Portal adapter: Poki / CrazyGames if present, otherwise a dev fallback that just grants rewards.
+    (function () {
+      var poki = function () { return window.PokiSDK; };
+      var crazy = function () { return window.CrazyGames && window.CrazyGames.SDK; };
+      window.smToast = function (m) { var t = document.getElementById("toast"); t.textContent = m; t.style.opacity = 1; clearTimeout(window.__gt); window.__gt = setTimeout(function () { t.style.opacity = 0; }, 2000); };
+      window.SD = {
+        adsAvailable: function () { return !!(poki() || crazy()); },   // rewarded ads only where a portal SDK exists
+        rewarded: function () {
+          if (poki()) return poki().rewardedBreak().then(function (ok) { return !!ok; });
+          if (crazy()) return new Promise(function (res) {
+            crazy().ad.requestAd("rewarded", { adFinished: function () { res(true); }, adError: function () { res(false); } });
+          });
+          return new Promise(function (res) { setTimeout(function () { res(true); }, 400); }); // dev: instant reward
+        },
+        gameplay: function (on) {
+          try { if (poki()) on ? poki().gameplayStart() : poki().gameplayStop(); } catch (e) {}
+          try { if (crazy()) on ? crazy().game.gameplayStart() : crazy().game.gameplayStop(); } catch (e) {}
+        },
+        ready: function () {
+          try { if (poki()) poki().gameLoadingFinished(); } catch (e) {}
+          try { if (crazy()) crazy().game.loadingStop(); } catch (e) {}
+        },
+        track: function (name, value) {
+          try { window.va && window.va("event", { name: name, data: { value: value } }); } catch (e) {}
+        }
+      };
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+      ["gesturestart", "gesturechange", "contextmenu", "dblclick"].forEach(function (ev) {
+        document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+      });
+      document.addEventListener("touchmove", function (e) { e.preventDefault(); }, { passive: false });
+    })();
+
+    (function () {
+      var canvas = document.getElementById("unity-canvas"), loader = document.getElementById("loader");
+      var fill = document.getElementById("fill"), err = document.getElementById("err");
+      var buildUrl = "Build";
+      var config = {
+        dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+        frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+        workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+        codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#endif
+#if MEMORY_FILENAME
+        memoryUrl: buildUrl + "/{{{ MEMORY_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+        symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}",
+#endif
+        streamingAssetsUrl: "StreamingAssets",
+        autoSyncPersistentDataPath: true,
+        companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+        productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+        productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+        showBanner: function (msg, type) { if (type === "error") { err.style.display = "block"; err.textContent = msg; } console.warn(msg); }
+      };
+      var s = document.createElement("script");
+      s.src = buildUrl + "/{{{ LOADER_FILENAME }}}";
+      s.onload = function () {
+        try { window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.game.loadingStart(); } catch (e) {}
+        createUnityInstance(canvas, config, function (p) { fill.style.width = Math.round(8 + p * 92) + "%"; })
+          .then(function (inst) { window.unityInstance = inst; window.snack && window.snack.ready();
+            document.addEventListener("visibilitychange", function () { if (document.hidden) { try { inst.SendMessage("Game", "Persist"); } catch (e) {} } });
+            window.addEventListener("pagehide", function () { try { inst.SendMessage("Game", "Persist"); } catch (e) {} }); fill.style.width = "100%"; setTimeout(function () { loader.classList.add("done"); canvas.focus(); }, 300); })
+          .catch(function (m) { err.style.display = "block"; err.textContent = "Couldn't start: " + m; });
+      };
+      document.body.appendChild(s);
+    })();
+  </script>
+  <script src="snack.js"></script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>
