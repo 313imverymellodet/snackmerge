@@ -11,7 +11,8 @@ public static class Kit
     static readonly Dictionary<Material, Material> matFix = new Dictionary<Material, Material>();
     static readonly Dictionary<string, Material> matByLook = new Dictionary<string, Material>();
     static Font font;
-    public static Font Font => font ? font : (font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+    // Lilita One (SIL OFL 1.1): the arcade-wide display face. It is already heavy, so UI text never asks Unity for faux bold.
+    public static Font Font => font ? font : (font = Resources.Load<Font>("Fonts/LilitaOne") ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
 
     static Material unlitAlpha;
     public static Material UnlitAlpha => unlitAlpha ? unlitAlpha : (unlitAlpha = Resources.Load<Material>("UnlitAlpha"));
@@ -347,5 +348,30 @@ public static class Kit
     {
         const float c1 = 1.70158f, c3 = c1 + 1f;
         return 1f + c3 * Mathf.Pow(t - 1f, 3) + c1 * Mathf.Pow(t - 1f, 2);
+    }
+}
+
+// Buttons dip while held: on a touch screen that is the only feedback that the tap registered.
+public class Press : MonoBehaviour, UnityEngine.EventSystems.IPointerDownHandler, UnityEngine.EventSystems.IPointerUpHandler, UnityEngine.EventSystems.IPointerExitHandler
+{
+    public float Sink;              // reference units to drop (buttons drawn over a separate shadow)
+    Vector3 scale; Vector2 pos; bool down;
+    public void OnPointerDown(UnityEngine.EventSystems.PointerEventData e)
+    {
+        if (down) return;
+        down = true;
+        var rt = (RectTransform)transform;
+        scale = rt.localScale; pos = rt.anchoredPosition;
+        if (Sink > 0) rt.anchoredPosition = pos - new Vector2(0, Sink); else rt.localScale = scale * 0.95f;
+    }
+    public void OnPointerUp(UnityEngine.EventSystems.PointerEventData e) => Release();
+    public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e) => Release();
+    void OnDisable() => Release();
+    void Release()
+    {
+        if (!down) return;
+        down = false;
+        var rt = (RectTransform)transform;
+        if (Sink > 0) rt.anchoredPosition = pos; else rt.localScale = scale;
     }
 }

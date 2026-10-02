@@ -55,9 +55,9 @@ public class UI : MonoBehaviour
         screens = Fill("screens", root);
 
         bannerText = Txt(root, "", 104, new Vector2(.5f, .62f), Vector2.zero, Berry, TextAnchor.MiddleCenter, 1400);
-        bannerText.fontStyle = FontStyle.BoldAndItalic; Outline(bannerText, 5, Color.white);
+        bannerText.fontStyle = FontStyle.Italic; Outline(bannerText, 5, Color.white);
         bannerSub = Txt(root, "", 54, new Vector2(.5f, .62f), new Vector2(0, -95), Cocoa, TextAnchor.MiddleCenter, 1400);
-        bannerSub.fontStyle = FontStyle.Bold; Outline(bannerSub, 3, Color.white);
+        bannerSub.fontStyle = FontStyle.Normal; Outline(bannerSub, 3, Color.white);
         bannerText.gameObject.SetActive(false); bannerSub.gameObject.SetActive(false);
         toastText = Txt(root, "", 40, new Vector2(.5f, .5f), new Vector2(0, 260), Cocoa, TextAnchor.MiddleCenter, 1200);
         Outline(toastText, 3, Color.white); toastText.gameObject.SetActive(false);
@@ -89,9 +89,10 @@ public class UI : MonoBehaviour
     }
     Text Txt(Transform p, string s, int size, Vector2 anchor, Vector2 pos, Color c, TextAnchor align = TextAnchor.MiddleCenter, float w = 700)
     {
+        size = Mathf.Max(size, 30);   // readable floor: Lilita below this turns to mush on phones and short desktop windows
         var rt = Rect("txt", p, anchor, pos, new Vector2(w, size * 1.4f));
         var t = rt.gameObject.AddComponent<Text>();
-        t.font = F; t.fontSize = size; t.fontStyle = FontStyle.Bold; t.alignment = align; t.color = c; t.text = s;
+        t.font = F; t.fontSize = size; t.fontStyle = FontStyle.Normal; t.alignment = align; t.color = c; t.text = s;
         t.raycastTarget = false; t.horizontalOverflow = HorizontalWrapMode.Overflow; t.verticalOverflow = VerticalWrapMode.Overflow;
         return t;
     }
@@ -103,8 +104,9 @@ public class UI : MonoBehaviour
         lip.SetAsFirstSibling(); lip.pivot = new Vector2(.5f, 0);
         var b = rt.gameObject.AddComponent<Button>(); b.targetGraphic = rt.GetComponent<Image>();
         b.onClick.AddListener(() => { Sfx.I.Click(); onClick(); });
+        rt.gameObject.AddComponent<Press>();
         var t = Txt(rt, label, fs, new Vector2(.5f, .5f), Vector2.zero, fg, TextAnchor.MiddleCenter, size.x);
-        t.fontStyle = FontStyle.BoldAndItalic;
+        t.fontStyle = FontStyle.Italic;
         return b;
     }
 
@@ -133,7 +135,7 @@ public class UI : MonoBehaviour
         {
             // portrait: score on top, next at top right, ladder + powers along the bottom
             var sb = Box(hud, new Vector2(.5f, 1), new Vector2(0, -105), new Vector2(460, 150), Panel);
-            scoreText = Txt(sb, "0", 92, new Vector2(.5f, .5f), new Vector2(0, 14), Cocoa); scoreText.fontStyle = FontStyle.BoldAndItalic;
+            scoreText = Txt(sb, "0", 92, new Vector2(.5f, .5f), new Vector2(0, 14), Cocoa); scoreText.fontStyle = FontStyle.Italic;
             bestText = Txt(sb, "", 30, new Vector2(.5f, .5f), new Vector2(0, -48), Soft);
             var nb = Box(hud, new Vector2(1, 1), new Vector2(-130, -105), new Vector2(190, 190), Panel);
             Txt(nb, "NEXT", 30, new Vector2(.5f, 1), new Vector2(0, -26), Soft);
@@ -149,7 +151,7 @@ public class UI : MonoBehaviour
             // landscape: score + next on the left of the jar, ladder + powers on the right
             // the jar spans about +-645 reference units; panels sit just outside it
             var sb = Box(hud, new Vector2(.5f, .5f), new Vector2(-880, 420), new Vector2(400, 170), Panel);
-            scoreText = Txt(sb, "0", 100, new Vector2(.5f, .5f), new Vector2(0, 16), Cocoa); scoreText.fontStyle = FontStyle.BoldAndItalic;
+            scoreText = Txt(sb, "0", 100, new Vector2(.5f, .5f), new Vector2(0, 16), Cocoa); scoreText.fontStyle = FontStyle.Italic;
             bestText = Txt(sb, "", 32, new Vector2(.5f, .5f), new Vector2(0, -54), Soft);
             var nb = Box(hud, new Vector2(.5f, .5f), new Vector2(-820, 120), new Vector2(260, 260), Panel);
             Txt(nb, "NEXT", 34, new Vector2(.5f, 1), new Vector2(0, -32), Soft);
@@ -226,7 +228,7 @@ public class UI : MonoBehaviour
         var half = pops.rect.size * 0.5f;
         lp.x = Mathf.Clamp(lp.x, -half.x + 220, half.x - 220);   // keep combo text on screen
         var t = Txt(pops, "+" + pts + (tag != null ? "\n" + tag : ""), tag != null ? 58 : 46, new Vector2(.5f, .5f), lp, tag != null ? Berry : Cocoa, TextAnchor.MiddleCenter, 600);
-        t.fontStyle = FontStyle.BoldAndItalic; Outline(t, 3, Color.white);
+        t.fontStyle = FontStyle.Italic; Outline(t, 3, Color.white);
         StartCoroutine(Float(t));
     }
     IEnumerator Float(Text t)
@@ -276,9 +278,9 @@ public class UI : MonoBehaviour
 
     Text Title(Transform p, string s, float y, int size, Color c, float x = 0)
     {
-        var sh = Txt(p, s, size, new Vector2(.5f, 1), new Vector2(x + 7, y - 10), Cocoa, TextAnchor.MiddleCenter, 1400); sh.fontStyle = FontStyle.BoldAndItalic;
+        var sh = Txt(p, s, size, new Vector2(.5f, 1), new Vector2(x + 7, y - 10), Cocoa, TextAnchor.MiddleCenter, 1400); sh.fontStyle = FontStyle.Italic;
         var t = Txt(p, s, size, new Vector2(.5f, 1), new Vector2(x, y), c, TextAnchor.MiddleCenter, 1400);
-        t.fontStyle = FontStyle.BoldAndItalic; Outline(t, 4, Color.white);
+        t.fontStyle = FontStyle.Italic; Outline(t, 4, Color.white);
         return t;
     }
 
@@ -366,14 +368,14 @@ public class UI : MonoBehaviour
         var g = Game.I;
         Title(s, best ? "NEW BEST!" : "JAR FULL!", -230, 120, best ? Mint : Berry);
         var big = Txt(s, g.Score.ToString("N0"), 160, new Vector2(.5f, 1), new Vector2(0, -420), Cocoa, TextAnchor.MiddleCenter, 1000);
-        big.fontStyle = FontStyle.BoldAndItalic; Outline(big, 5, Color.white);
+        big.fontStyle = FontStyle.Italic; Outline(big, 5, Color.white);
         Txt(s, g.Daily ? "DAILY JAR  -  " + DateTime.UtcNow.ToString("MMM d").ToUpper() : "CLASSIC", 36, new Vector2(.5f, 1), new Vector2(0, -540), Soft);
         rankText = Txt(s, "", 38, new Vector2(.5f, 1), new Vector2(0, -600), Mint, TextAnchor.MiddleCenter, 1000);
         if (lastRank != null) ApplyRank();
         var mb = Box(s, new Vector2(.5f, 1), new Vector2(0, -790), new Vector2(620, 250), Panel);
         Txt(mb, "BIGGEST SNACK", 32, new Vector2(.5f, 1), new Vector2(0, -36), Soft);
         Img(mb, Icon(Snacks.All[g.MaxTier].id), new Vector2(.5f, .5f), new Vector2(-150, -20), new Vector2(150, 150));
-        Txt(mb, Snacks.All[g.MaxTier].name, 50, new Vector2(.5f, .5f), new Vector2(90, -20), Cocoa, TextAnchor.MiddleCenter, 400).fontStyle = FontStyle.BoldAndItalic;
+        Txt(mb, Snacks.All[g.MaxTier].name, 50, new Vector2(.5f, .5f), new Vector2(90, -20), Cocoa, TextAnchor.MiddleCenter, 400).fontStyle = FontStyle.Italic;
 
         float y = 720;
         if (g.Continues > 0)

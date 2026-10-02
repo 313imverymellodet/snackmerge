@@ -43,7 +43,7 @@ public static class SnackBuild
         PlayerSettings.productName = "Snack Merge";
         PlayerSettings.bundleVersion = "1.0.0";
         PlayerSettings.colorSpace = ColorSpace.Gamma;
-        PlayerSettings.runInBackground = true;   // live races keep going when the window loses focus
+        PlayerSettings.runInBackground = true;   // keeps ticking on blur; Game pauses itself (see OnApplicationFocus)
         PlayerSettings.SplashScreen.show = false;
         PlayerSettings.WebGL.template = "PROJECT:SnackMerge";
         PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;

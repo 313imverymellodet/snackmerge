@@ -43,7 +43,7 @@ public class Game : MonoBehaviour
         WebGLInput.captureAllKeyboardInput = false;
 #endif
         var url = Application.absoluteURL ?? "";
-        Dev = url.Contains("dev=1");
+        Dev = url.Contains("dev=1") && (url.Contains("://localhost") || url.Contains("://127.0.0.1"));   // cheats never on the live site
         DevCam.Install(Dev);
         var json = PlayerPrefs.GetString("sm_save", "");
         Save = string.IsNullOrEmpty(json) ? new SaveData() : JsonUtility.FromJson<SaveData>(json) ?? new SaveData();
@@ -71,6 +71,9 @@ public class Game : MonoBehaviour
         if (!Save.howto) UI.I.ShowHowTo();
         WebBridge.Ready();
     }
+
+    // the jar keeps settling while you look away, so pause instead
+    void OnApplicationFocus(bool f) { if (!f && State == St.Play && Time.timeScale > 0) UI.I.ShowPause(); }
 
     public void Persist() { PlayerPrefs.SetString("sm_save", JsonUtility.ToJson(Save)); PlayerPrefs.Save(); }
 
