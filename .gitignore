@@ -22,3 +22,4 @@ node_modules/
 
 .vercel
 /dist-dev/
+/portals/

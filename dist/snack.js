@@ -111,7 +111,7 @@
       '<input maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="NAME">' +
       '<div class="err">' + (err || "") + '</div><button class="btn p" data-a="ok">SAVE MY SCORE</button><button class="btn s" data-a="skip">SKIP</button></div>';
     var input = nm.querySelector("input");
-    input.value = meName || "";
+    input.value = meName || window.__portalName || "";
     nm.classList.add("on");
     setTimeout(function () { input.focus(); }, 50);
     nm.querySelector('[data-a="ok"]').onclick = function () {

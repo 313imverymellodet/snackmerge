@@ -8,6 +8,7 @@ public class SaveData
 {
     public int best, bestDaily, bestDailyDay, games, maxTier = 0;
     public bool muted, howto;
+    public int tut;                     // first-game coaching: 0 aim + drop, 1 make a merge, 2 done
     public int discovered = 1;          // bitmask of tiers ever made
 }
 
@@ -30,6 +31,7 @@ public class Game : MonoBehaviour
     Transform world, jar, guide;
     Item held;
     float aimX, dropCd, comboT, overT, shake, playTime, camX;
+    bool warned;
     System.Random rng;
     Light sun;
     LineRenderer dangerLine;
@@ -68,7 +70,8 @@ public class Game : MonoBehaviour
         FX.Init(world);
         new GameObject("UI").AddComponent<UI>().Init();
         GoMenu();
-        if (!Save.howto) UI.I.ShowHowTo();
+        // first launch goes straight to the menu; the first game coaches in place (no wall of text)
+        if (Save.games == 0) Save.howto = true;
         WebBridge.Ready();
     }
 
@@ -207,12 +210,20 @@ public class Game : MonoBehaviour
         held = null;
     }
 
+    // Portals want their interstitial before every new round; their SDK decides whether one plays.
     public void StartGame(bool daily)
+    {
+        if (State == St.Over) WebBridge.Event("play_again");
+        UI.I.CloseScreens();
+        WebBridge.I.Midgame(() => BeginGame(daily));
+    }
+
+    void BeginGame(bool daily)
     {
         Daily = daily;
         Clear();
         Score = 0; Drops = 0; Combo = 0; MaxTier = 0; overT = 0; playTime = 0;
-        Shakes = 1; Pops = 1; Continues = 1; PopMode = false;
+        Shakes = 1; Pops = 1; Continues = 1; PopMode = false; warned = false;
         int seed = daily ? Day() * 7919 : Environment.TickCount;
         rng = new System.Random(seed);
         CurTier = Roll(); NextTier = Roll();
@@ -220,6 +231,9 @@ public class Game : MonoBehaviour
         State = St.Play;
         SpawnHeld();
         Save.games++; Persist();
+        if (Save.tut == 0) UI.I.Coach(Input.touchSupported ? "DRAG TO AIM  -  LET GO TO DROP" : "MOVE TO AIM  -  CLICK TO DROP", true);
+        else if (Save.tut == 1) UI.I.Coach("MATCH TWO OF A KIND TO MERGE!", false);
+        else UI.I.Coach(null, false);
         UI.I.CloseScreens();
         UI.I.ShowHud(true);
         Sfx.I.StartMusic();
@@ -254,6 +268,8 @@ public class Game : MonoBehaviour
         held = null;
         Drops++;
         Sfx.I.Drop(CurTier);
+        if (Drops == 10 || Drops == 25 || Drops == 50 || Drops == 100 || Drops == 200) WebBridge.Event("drops_" + Drops);
+        if (Save.tut == 0 && Drops >= 2) { Save.tut = 1; Persist(); UI.I.Coach("MATCH TWO OF A KIND TO MERGE!", false); WebBridge.Event("tut_aimed"); }
         CurTier = NextTier; NextTier = Roll();
         dropCd = 0.45f;
         UI.I.SetNext(NextTier);
@@ -284,6 +300,7 @@ public class Game : MonoBehaviour
             int bonus = 500 * mult;
             AddScore(bonus, pos, "JACKPOT!");
             FX.Burst(pos, def.color, 60, 1.6f); FX.Confetti(pos, 80);
+            WebBridge.Happy(); WebBridge.Event("jackpot");
             Sfx.I.Jackpot(); Shake(0.8f);
             WebBridge.Vibrate(120);
             return;
@@ -298,12 +315,20 @@ public class Game : MonoBehaviour
         Sfx.I.Merge(nt, Combo);
         if (nt >= 6) Shake(0.15f + nt * 0.04f);
         WebBridge.Vibrate(8 + nt * 4);
-        if (nt > MaxTier) MaxTier = nt;
+        if (nt > MaxTier) { MaxTier = nt; if (nt >= 3) WebBridge.Event("reach_" + Snacks.All[nt].id); }
+        if (Save.tut == 1)
+        {
+            Save.tut = 2; Persist();
+            UI.I.Coach(null, false);
+            UI.I.Banner("NICE MERGE!", "keep matching to grow bigger snacks");
+            WebBridge.Event("tut_merged");
+        }
         bool fresh = (Save.discovered & (1 << nt)) == 0;
         if (fresh)
         {
             Save.discovered |= 1 << nt;
             UI.I.Banner("NEW SNACK!", Snacks.All[nt].name);
+            if (nt >= 6) WebBridge.Happy();
             Sfx.I.Discover();
             Persist();
         }
@@ -322,8 +347,8 @@ public class Game : MonoBehaviour
     public void UseShake()
     {
         if (State != St.Play) return;
-        if (Shakes > 0) { Shakes--; DoShake(); return; }
-        if (WebBridge.AdsAvailable) WebBridge.I.ShowRewarded(ok => { if (ok) DoShake(); });
+        if (Shakes > 0) { Shakes--; DoShake(); WebBridge.Event("shake_free"); return; }
+        if (WebBridge.AdsAvailable) WebBridge.I.ShowRewarded(ok => { if (ok) { DoShake(); WebBridge.Event("shake_ad"); } });
         else UI.I.Toast("NO SHAKES LEFT");
     }
     void DoShake()
@@ -337,7 +362,7 @@ public class Game : MonoBehaviour
     {
         if (State != St.Play) return;
         if (Pops > 0) { PopMode = !PopMode; UI.I.SetPowers(); if (PopMode) UI.I.Toast("TAP A SNACK TO POP IT"); return; }
-        if (WebBridge.AdsAvailable) WebBridge.I.ShowRewarded(ok => { if (ok) { Pops++; PopMode = true; UI.I.SetPowers(); UI.I.Toast("TAP A SNACK TO POP IT"); } });
+        if (WebBridge.AdsAvailable) WebBridge.I.ShowRewarded(ok => { if (ok) { Pops++; PopMode = true; WebBridge.Event("pop_ad"); UI.I.SetPowers(); UI.I.Toast("TAP A SNACK TO POP IT"); } });
         else UI.I.Toast("NO POPS LEFT");
     }
     void PopAt(Vector2 p)
@@ -364,6 +389,7 @@ public class Game : MonoBehaviour
         Action go = () =>
         {
             Continues--;
+            WebBridge.Event(WebBridge.AdsAvailable ? "continue_ad" : "continue_free");
             // clear everything poking above two thirds of the jar
             for (int i = Items.Count - 1; i >= 0; i--)
                 if (Items[i].Top > H * 0.62f) { FX.Burst(Items[i].transform.position, Snacks.All[Items[i].Tier].color, 14, 0.8f); Destroy(Items[i].gameObject); Items.RemoveAt(i); }
@@ -397,6 +423,9 @@ public class Game : MonoBehaviour
         WebBridge.RunSubmit(Daily ? "daily" : "classic", Score, Drops, MaxTier);
         WebBridge.Gameplay(false);
         WebBridge.Event(Daily ? "over_daily" : "over_classic", Score);
+        WebBridge.Event("over_seconds", Mathf.RoundToInt(playTime));
+        WebBridge.Event("over_tier_" + Snacks.All[MaxTier].id);
+        if (Save.tut < 2) WebBridge.Event("over_before_merge");
         StartCoroutine(ShowOver(best));
     }
 
@@ -456,6 +485,7 @@ public class Game : MonoBehaviour
         dangerLine.startColor = dangerLine.endColor = Color.Lerp(new Color(1f, 0.35f, 0.4f, 0.45f), new Color(1f, 0.1f, 0.15f, 1f), over ? 0.5f + 0.5f * Mathf.Sin(Time.time * 14f) : 0f);
         dangerLine.widthMultiplier = over ? 0.11f : 0.07f;
         if (over && Mathf.Repeat(Time.time, 0.5f) < dt) Sfx.I.Warn();
+        if (over && !warned) { warned = true; UI.I.Toast("DON'T LET SNACKS SIT ABOVE THE LINE!"); }
         if (overT > 2.4f) GameOver();
         UI.I.UpdateHud(warn);
         FitCamera();

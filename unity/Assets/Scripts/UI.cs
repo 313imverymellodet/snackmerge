@@ -182,6 +182,7 @@ public class UI : MonoBehaviour
     {
         hud.gameObject.SetActive(on);
         zone.gameObject.SetActive(on);
+        if (!on) Coach(null, false);
         if (on) { SetNext(Game.I.NextTier); SetPowers(); SetEvolution(); }
     }
 
@@ -251,6 +252,51 @@ public class UI : MonoBehaviour
         bannerText.gameObject.SetActive(true); bannerSub.gameObject.SetActive(!string.IsNullOrEmpty(sub));
     }
     public void Toast(string s) { toastText.text = s; toastT = 2.2f; toastText.gameObject.SetActive(true); }
+
+    // ---------------------------------------------------------------- first-game coaching
+    // One short line at a time, shown in place while the player plays (no rules screen to read first).
+    RectTransform coach, coachHand; Text coachText; Coroutine coachAnim;
+    public void Coach(string msg, bool hand)
+    {
+        if (string.IsNullOrEmpty(msg)) { if (coach) coach.gameObject.SetActive(false); return; }
+        if (!coach)
+        {
+            coach = Box(root, new Vector2(.5f, 0), Vector2.zero, new Vector2(940, 120), new Color(0.35f, 0.23f, 0.16f, 0.84f));
+            coach.SetSiblingIndex(screens.GetSiblingIndex());
+            coachText = Txt(coach, "", 46, new Vector2(.5f, .5f), Vector2.zero, Color.white, TextAnchor.MiddleCenter, 900);
+            var h = Img(coach, disc, new Vector2(.5f, 1), new Vector2(0, 95), new Vector2(76, 76)); h.color = Kit.A(Color.white, 0.95f);
+            var r = Img(h.transform, ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(110, 110)); r.color = Berry;
+            coachHand = h.rectTransform;
+        }
+        // middle of the (still empty) jar: clear of the drop point at the top and the pile at the bottom
+        coach.anchorMin = coach.anchorMax = new Vector2(.5f, .5f);
+        coach.anchoredPosition = new Vector2(0, Landscape ? 40 : 120);
+        coachText.text = msg;
+        coachHand.gameObject.SetActive(hand);
+        coach.gameObject.SetActive(true);
+        if (coachAnim != null) StopCoroutine(coachAnim);
+        coachAnim = StartCoroutine(CoachAnim());
+    }
+    IEnumerator CoachAnim()
+    {
+        float t0 = Time.unscaledTime;
+        while (coach && coach.gameObject.activeSelf)
+        {
+            float t = Time.unscaledTime - t0;
+            coach.localScale = Vector3.one * (t < 0.25f ? Kit.EaseOutBack(t / 0.25f) : 1f + Mathf.Sin(t * 3f) * 0.015f);
+            if (coachHand.gameObject.activeSelf)
+            {
+                // drag left and right, then a "tap" squash to show the drop
+                float cyc = t % 2.4f;
+                float x = cyc < 1.8f ? Mathf.Sin(cyc / 1.8f * Mathf.PI * 2f) * 300f : 0f;
+                float sq = cyc >= 1.8f ? 1f - Mathf.Sin((cyc - 1.8f) / 0.6f * Mathf.PI) * 0.3f : 1f;
+                coachHand.anchoredPosition = new Vector2(x, 95);
+                coachHand.localScale = Vector3.one * sq;
+            }
+            yield return null;
+        }
+        coachAnim = null;
+    }
 
     // ---------------------------------------------------------------- screens
     RectTransform Screen(bool dim = true)
@@ -354,11 +400,12 @@ public class UI : MonoBehaviour
         var g = Game.I;
         if (g.State != Game.St.Play) return;
         Time.timeScale = 0;
+        WebBridge.Gameplay(false);
         var s = Column(Screen());
         Title(s, "PAUSED", -560, 130, Berry);
-        Btn(s, "RESUME", new Vector2(.5f, .5f), new Vector2(0, 160), new Vector2(600, 160), Mint, Color.white, () => { Time.timeScale = 1; CloseScreens(); }, 64);
+        Btn(s, "RESUME", new Vector2(.5f, .5f), new Vector2(0, 160), new Vector2(600, 160), Mint, Color.white, () => { Time.timeScale = 1; CloseScreens(); WebBridge.Gameplay(true); }, 64);
         Btn(s, "RESTART", new Vector2(.5f, .5f), new Vector2(0, -40), new Vector2(600, 130), Panel, Cocoa, () => { Time.timeScale = 1; g.StartGame(g.Daily); }, 48);
-        Btn(s, "MENU", new Vector2(.5f, .5f), new Vector2(0, -210), new Vector2(600, 130), Panel, Berry, () => { Time.timeScale = 1; g.Quit(); }, 48);
+        Btn(s, "MENU", new Vector2(.5f, .5f), new Vector2(0, -210), new Vector2(600, 130), Panel, Berry, () => { Time.timeScale = 1; WebBridge.Event("quit_midgame", g.Drops); g.Quit(); }, 48);
     }
 
     public void ShowOver(bool best)
@@ -387,10 +434,15 @@ public class UI : MonoBehaviour
         var again = Btn(s, "PLAY AGAIN", new Vector2(.5f, 0), new Vector2(0, y), new Vector2(700, 160), Berry, Color.white, () => g.StartGame(g.Daily), 66);
         if (g.Continues <= 0) StartCoroutine(Pulse(again.transform));
         y -= 170;
-        var share = Btn(s, "SHARE", new Vector2(.5f, 0), new Vector2(-240, y), new Vector2(220, 120), Panel, Cocoa, () => { }, 40);
-        share.gameObject.AddComponent<ShareOnPress>().Text = () => g.ShareText();
-        Btn(s, "RANKS", new Vector2(.5f, 0), new Vector2(0, y), new Vector2(220, 120), Honey, Cocoa, () => WebBridge.ShowBoard(g.Daily ? "daily" : "classic"), 40);
-        Btn(s, "MENU", new Vector2(.5f, 0), new Vector2(240, y), new Vector2(220, 120), Panel, Cocoa, () => g.Quit(), 40);
+        float rx = 0, mx = 240;
+        if (!WebBridge.OnPortal)
+        {
+            var share = Btn(s, "SHARE", new Vector2(.5f, 0), new Vector2(-240, y), new Vector2(220, 120), Panel, Cocoa, () => { }, 40);
+            share.gameObject.AddComponent<ShareOnPress>().Text = () => g.ShareText();
+        }
+        else { rx = -125; mx = 125; }
+        Btn(s, "RANKS", new Vector2(.5f, 0), new Vector2(rx, y), new Vector2(220, 120), Honey, Cocoa, () => WebBridge.ShowBoard(g.Daily ? "daily" : "classic"), 40);
+        Btn(s, "MENU", new Vector2(.5f, 0), new Vector2(mx, y), new Vector2(220, 120), Panel, Cocoa, () => g.Quit(), 40);
     }
 
     Game.RankMsg lastRank;

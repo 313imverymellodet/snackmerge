@@ -44,7 +44,8 @@
   <script>
     // First-party analytics: anonymous daily event counts on the shared game server (no personal data).
     (function () {
-      var G = "snackmerge", API = new URLSearchParams(location.search).get("api") || "https://orbyt-api-production-29f6.up.railway.app";
+      var P = window.PORTAL || "web";
+      var G = "snackmerge" + ({ crazygames: "_cg", poki: "_poki", gd: "_gd" }[P] || ""), API = new URLSearchParams(location.search).get("api") || "https://orbyt-api-production-29f6.up.railway.app";
       var q = [], uid;
       try { uid = localStorage.getItem("ev_uid"); if (!uid) { uid = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); localStorage.setItem("ev_uid", uid); } } catch (e) { uid = Math.random().toString(36).slice(2, 14); }
       function flush() {
@@ -75,24 +76,76 @@
   </div>
   <div id="toast" style="position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:#5a3a2a;color:#fff7ec;font-weight:800;padding:12px 20px;border-radius:999px;opacity:0;transition:opacity .25s;z-index:30;pointer-events:none"></div>
   <script>
-    // ---- Portal adapter: Poki / CrazyGames if present, otherwise a dev fallback that just grants rewards.
+    // ---- Portal adapter. tools/portals.mjs sets window.PORTAL and adds the portal's SDK script:
+    //   "crazygames" (CrazyGames SDK v3), "poki" (Poki SDK v2), "gd" (GameDistribution), or "web" (our own site: no ads).
+    // Every ad mutes + freezes the game (WebBridge.Hold) and resumes when the SDK hands control back.
     (function () {
-      var poki = function () { return window.PokiSDK; };
-      var crazy = function () { return window.CrazyGames && window.CrazyGames.SDK; };
+      var P = window.PORTAL || "web";
+      var poki = function () { return P === "poki" && window.PokiSDK; };
+      var crazy = function () { return P === "crazygames" && window.CrazyGames && window.CrazyGames.SDK; };
+      var gd = function () { return P === "gd" && window.gdsdk; };
+      var send = function (m, v) { try { window.unityInstance && window.unityInstance.SendMessage("WebBridge", m, v); } catch (e) {} };
+      // never hang the game on an SDK that does not call back
+      var guard = function (p, ms, fallback) { return Promise.race([p, new Promise(function (r) { setTimeout(function () { r(fallback); }, ms); })]); };
       window.smToast = function (m) { var t = document.getElementById("toast"); t.textContent = m; t.style.opacity = 1; clearTimeout(window.__gt); window.__gt = setTimeout(function () { t.style.opacity = 0; }, 2000); };
+
+      // GameDistribution pauses/resumes the game itself around its ads
+      var gdPaused = false, gdReward = false;
+      window.__gdEvent = function (e) {
+        if (e.name === "SDK_GAME_PAUSE" && !gdPaused) { gdPaused = true; send("OnAdPause", "1"); }
+        else if (e.name === "SDK_GAME_START" && gdPaused) { gdPaused = false; send("OnAdPause", "0"); }
+        else if (e.name === "SDK_REWARDED_WATCH_COMPLETE") gdReward = true;
+      };
+
+      var lastMid = 0, midCalls = 0;
       window.SD = {
-        adsAvailable: function () { return !!(poki() || crazy()); },   // rewarded ads only where a portal SDK exists
+        portal: P,
+        init: function () {
+          var p = Promise.resolve();
+          try {
+            if (crazy()) p = window.CrazyGames.SDK.init().then(function () {
+              // signed-in CrazyGames players get their username pre-filled on the leaderboard prompt
+              try { crazy().user.getUser().then(function (u) { if (u && u.username) window.__portalName = String(u.username).toUpperCase().replace(/[^A-Z0-9 _.-]/g, "").slice(0, 12); }).catch(function () {}); } catch (e) {}
+            });
+            else if (poki()) p = window.PokiSDK.init();
+          } catch (e) {}
+          return guard(p.catch(function () {}), 4000);
+        },
+        adsAvailable: function () { return !!(poki() || crazy() || gd()); },
         rewarded: function () {
-          if (poki()) return poki().rewardedBreak().then(function (ok) { return !!ok; });
-          if (crazy()) return new Promise(function (res) {
-            crazy().ad.requestAd("rewarded", { adFinished: function () { res(true); }, adError: function () { res(false); } });
-          });
-          return new Promise(function (res) { setTimeout(function () { res(true); }, 400); }); // dev: instant reward
+          window.SD.track("ad_rewarded", 0);
+          if (poki()) return guard(poki().rewardedBreak(function () {}).then(function (ok) { return !!ok; }), 60000, false);
+          if (crazy()) return guard(new Promise(function (res) {
+            crazy().ad.requestAd("rewarded", { adStarted: function () {}, adFinished: function () { res(true); }, adError: function () { res(false); } });
+          }), 60000, false);
+          if (gd()) {
+            gdReward = false;
+            var show = function () { return gd().showAd("rewarded"); };
+            return guard((gd().preloadAd ? gd().preloadAd("rewarded").then(show) : show()).then(function () { return gdReward; }, function () { return false; }), 60000, false);
+          }
+          return Promise.resolve(false);
+        },
+        // Interstitial before a round. Poki wants commercialBreak before every gameplayStart and rate-limits itself;
+        // elsewhere we skip the session's first round (the portal already ran a preroll) and keep 60 s between ads.
+        midgame: function () {
+          var now = Date.now();
+          midCalls++;
+          if (!poki() && (midCalls === 1 || now - lastMid < 60000)) return Promise.resolve();
+          lastMid = now;
+          window.SD.track("ad_midgame", 0);
+          var p;
+          if (poki()) p = poki().commercialBreak(function () {});
+          else if (crazy()) p = new Promise(function (res) { crazy().ad.requestAd("midgame", { adStarted: function () {}, adFinished: res, adError: res }); });
+          else if (gd()) p = gd().showAd();
+          else p = Promise.resolve();
+          return guard(p.then(function () {}, function () {}), 60000);
         },
         gameplay: function (on) {
           try { if (poki()) on ? poki().gameplayStart() : poki().gameplayStop(); } catch (e) {}
           try { if (crazy()) on ? crazy().game.gameplayStart() : crazy().game.gameplayStop(); } catch (e) {}
         },
+        happy: function () { try { if (crazy()) crazy().game.happytime(); } catch (e) {} },
+        loading: function () { try { if (crazy()) crazy().game.loadingStart(); } catch (e) {} },
         ready: function () {
           try { if (poki()) poki().gameLoadingFinished(); } catch (e) {}
           try { if (crazy()) crazy().game.loadingStop(); } catch (e) {}
@@ -105,6 +158,12 @@
         document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
       });
       document.addEventListener("touchmove", function (e) { e.preventDefault(); }, { passive: false });
+      // keep Space / arrows / PageUp-Down from scrolling the portal page around the game frame
+      window.addEventListener("keydown", function (e) {
+        if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;   // the leaderboard name box still types normally
+        if ([" ", "Spacebar", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown"].indexOf(e.key) >= 0) e.preventDefault();
+      }, { passive: false });
+      window.addEventListener("wheel", function (e) { e.preventDefault(); }, { passive: false });
     })();
 
     (function () {
@@ -112,9 +171,9 @@
       var fill = document.getElementById("fill"), err = document.getElementById("err");
       var buildUrl = "Build";
       var config = {
-        dataUrl: buildUrl + "/18e5eebfbc48261de147b7631bbd1003.data.unityweb",
-        frameworkUrl: buildUrl + "/e4176c63e74c79c5f50d113fefefb5d0.framework.js.unityweb",
-        codeUrl: buildUrl + "/aae29764a38c2f09551444cff280e727.wasm.unityweb",
+        dataUrl: buildUrl + "/1f1711dd7369101303e53475c67ed4d7.data.unityweb",
+        frameworkUrl: buildUrl + "/fb2ecf3ab82cfbccb067f9994b6f0f48.framework.js.unityweb",
+        codeUrl: buildUrl + "/e8505a0ecf0659ef0b02efc3b0a57bb4.wasm.unityweb",
         streamingAssetsUrl: "StreamingAssets",
         autoSyncPersistentDataPath: true,
         companyName: "SnackMerge",
@@ -126,14 +185,15 @@
       var s = document.createElement("script");
       s.src = buildUrl + "/cd168a29eff444d1441cece9eee011ee.loader.js";
       s.onload = function () {
-        try { window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.game.loadingStart(); } catch (e) {}
+        window.SD.loading();
         createUnityInstance(canvas, config, function (p) { fill.style.width = Math.round(8 + p * 92) + "%"; })
           .then(function (inst) { window.unityInstance = inst; window.snack && window.snack.ready();
             document.addEventListener("visibilitychange", function () { if (document.hidden) { try { inst.SendMessage("Game", "Persist"); } catch (e) {} } });
             window.addEventListener("pagehide", function () { try { inst.SendMessage("Game", "Persist"); } catch (e) {} }); fill.style.width = "100%"; setTimeout(function () { loader.classList.add("done"); canvas.focus(); }, 300); })
           .catch(function (m) { err.style.display = "block"; err.textContent = "Couldn't start: " + m; });
       };
-      document.body.appendChild(s);
+      // portal SDKs must be initialised before anything else talks to them
+      window.SD.init().then(function () { document.body.appendChild(s); });
     })();
   </script>
   <script src="snack.js"></script>

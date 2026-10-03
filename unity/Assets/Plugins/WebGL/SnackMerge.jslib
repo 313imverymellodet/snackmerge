@@ -9,6 +9,18 @@ mergeInto(LibraryManager.library, {
   SD_Gameplay: function (on) { if (window.SD && window.SD.gameplay) window.SD.gameplay(!!on); },
   SD_Event: function (namePtr, value) { if (window.SD && window.SD.track) window.SD.track(UTF8ToString(namePtr), value); },
   SD_Ready: function () { if (window.SD && window.SD.ready) window.SD.ready(); },
+  SD_Midgame: function (goPtr) {
+    var go = UTF8ToString(goPtr);
+    var done = function () { try { window.unityInstance && window.unityInstance.SendMessage(go, "OnMidgame", "1"); } catch (e) {} };
+    if (window.SD && window.SD.midgame) window.SD.midgame().then(done, done); else done();
+  },
+  SD_Happy: function () { if (window.SD && window.SD.happy) window.SD.happy(); },
+  SD_Portal: function () {
+    var p = (window.SD && window.SD.portal) || "web";
+    var n = lengthBytesUTF8(p) + 1, b = _malloc(n);
+    stringToUTF8(p, b, n);
+    return b;
+  },
 
   SM_Vibrate: function (ms) { try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(ms); } catch (e) {} },
 
