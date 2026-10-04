@@ -38,9 +38,17 @@ for (const [name, sdk] of Object.entries(PORTALS)) {
   fs.writeFileSync(path.join(dir, "index.html"), html);
 
   const zip = path.join(out, `snackmerge-${name}.zip`);
+  // Python's zipfile writes plain, forward-slash entries that Windows Explorer and every portal uploader accept
+  // (Windows tar.exe zips are valid but Explorer refuses them)
+  const py = `import os, sys, zipfile
+src, out = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    for root, _, files in os.walk(src):
+        for f in files:
+            full = os.path.join(root, f)
+            z.write(full, os.path.relpath(full, src).replace(os.sep, "/"))`;
   try {
-    // Windows' bundled bsdtar writes real zips; index.html must sit at the zip root
-    execFileSync(process.platform === "win32" ? "C:\\Windows\\System32\\tar.exe" : "zip", process.platform === "win32" ? ["-a", "-cf", zip, "-C", dir, "."] : ["-qr", zip, "."], { cwd: dir });
+    execFileSync(process.platform === "win32" ? "python" : "python3", ["-c", py, dir, zip]);
   } catch (e) {
     console.error("zip failed for", name, e.message);
     continue;
