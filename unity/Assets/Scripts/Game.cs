@@ -459,6 +459,7 @@ public class Game : MonoBehaviour
             held.transform.position = Vector3.Lerp(held.transform.position, new Vector3(aimX, DropY, 0), 1f - Mathf.Exp(-dt * 30f));
             held.transform.rotation = Quaternion.Euler(0, 0, Mathf.Sin(Time.time * 3f) * 8f);
         }
+        if (autoplay && held && dropCd <= 0) AutoAim(dt);
         if (UI.I.Released) { if (PopMode) PopAt(Cam.ScreenToWorldPoint(UI.I.LastPointer)); else Drop(); }
         if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S)) Drop();
 
@@ -515,6 +516,36 @@ public class Game : MonoBehaviour
     {
         var m = JsonUtility.FromJson<RankMsg>(json);
         if (m != null) UI.I.SetRank(m);
+    }
+
+    // dev: SendMessage("Game", "DevAuto", "1") plays by itself, aiming each snack at a matching one (for preview videos)
+    bool autoplay; float? autoX; float autoWait;
+    public void DevAuto(string on) { if (Dev) { autoplay = on == "1"; autoX = null; } }
+    void AutoAim(float dt)
+    {
+        float r = held.R;
+        if (!autoX.HasValue)
+        {
+            Item best = null;
+            foreach (var it in Items) if (it && it.Tier == CurTier && (best == null || it.transform.position.y > best.transform.position.y)) best = it;
+            if (best != null) autoX = best.transform.position.x;
+            else
+            {
+                // no match in the jar: drop where the pile is lowest
+                float bx = 0, bh = float.MaxValue;
+                for (int i = 0; i <= 8; i++)
+                {
+                    float x = Mathf.Lerp(-W / 2f + r, W / 2f - r, i / 8f), top = 0;
+                    foreach (var it in Items) if (it && Mathf.Abs(it.transform.position.x - x) < it.R + r) top = Mathf.Max(top, it.transform.position.y + it.R);
+                    if (top < bh) { bh = top; bx = x; }
+                }
+                autoX = bx;
+            }
+            autoX = Mathf.Clamp(autoX.Value + UnityEngine.Random.Range(-0.08f, 0.08f), -W / 2f + r, W / 2f - r);
+            autoWait = 0.18f;
+        }
+        aimX = Mathf.MoveTowards(aimX, autoX.Value, 9f * dt);
+        if (Mathf.Abs(aimX - autoX.Value) < 0.02f && (autoWait -= dt) <= 0) { autoX = null; Drop(); }
     }
 
     // dev: SendMessage("Game", "DevFill", "") tips a pile of mixed snacks into the jar
