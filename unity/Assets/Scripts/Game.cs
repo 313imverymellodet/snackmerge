@@ -8,11 +8,14 @@ public class SaveData
 {
     public int best, bestDaily, bestDailyDay, games, maxTier = 0;
     public bool muted, howto;
-    public int tut;                     // first-game coaching: 0 aim + drop, 1 make a merge, 2 done
+    public int tut;                     // first-game coaching: 0 aim + drop, 1 make a merge, 2 feed the monster, 3 done
+    public int bestMeals;
     public int discovered = 1;          // bitmask of tiers ever made
 }
 
-// SNACK MERGE: drop snacks into the jar; two of a kind merge into the next one up.
+// SNACK MONSTER: drop snacks into the jar; two of a kind merge into the next one up.
+// A hungry monster leans on the jar craving one snack at a time: merge into it and the monster snatches it
+// out (big points, and room in the jar). Leave it hungry and it stomps and shakes the jar.
 // CLASSIC uses a random drop order; DAILY uses the same seeded order for everyone today.
 public class Game : MonoBehaviour
 {
@@ -32,7 +35,9 @@ public class Game : MonoBehaviour
     Item held;
     float aimX, dropCd, comboT, overT, shake, playTime, camX;
     bool warned;
-    System.Random rng;
+    System.Random rng, monsterRng;   // the monster rolls on its own stream so DAILY drops stay identical for everyone
+    public Monster Monster;
+    public int Meals => Monster ? Monster.Meals : 0;
     Light sun;
     LineRenderer dangerLine;
 
@@ -67,6 +72,7 @@ public class Game : MonoBehaviour
         RenderSettings.ambientSkyColor = Kit.Hex("#FFF1E6"); RenderSettings.ambientEquatorColor = Kit.Hex("#E9C9B8"); RenderSettings.ambientGroundColor = Kit.Hex("#B08878");
         world = new GameObject("World").transform;
         BuildJar();
+        Monster = Monster.Make(world);
         FX.Init(world);
         new GameObject("UI").AddComponent<UI>().Init();
         GoMenu();
@@ -198,6 +204,7 @@ public class Game : MonoBehaviour
             var it = Item.Create(t, new Vector2((float)(r.NextDouble() - 0.5) * (W - 2f), 1f + i * 0.9f), world, true);
             Items.Add(it);
         }
+        if (Monster) Monster.Idle();
         UI.I.ShowMenu();
         WebBridge.Gameplay(false);
     }
@@ -226,7 +233,9 @@ public class Game : MonoBehaviour
         Shakes = 1; Pops = 1; Continues = 1; PopMode = false; warned = false;
         int seed = daily ? Day() * 7919 : Environment.TickCount;
         rng = new System.Random(seed);
+        monsterRng = new System.Random(seed ^ 0x5eed);
         CurTier = Roll(); NextTier = Roll();
+        Monster.Begin();
         aimX = 0; dropCd = 0.3f;
         State = St.Play;
         SpawnHeld();
@@ -234,6 +243,7 @@ public class Game : MonoBehaviour
         if (Save.tut == 0) UI.I.Coach(Input.touchSupported ? "DRAG TO AIM  -  LET GO TO DROP" : "MOVE TO AIM  -  CLICK TO DROP", true);
         else if (Save.tut == 1) UI.I.Coach("MATCH TWO OF A KIND TO MERGE!", false);
         else UI.I.Coach(null, false);
+        specialGap = 0;
         UI.I.CloseScreens();
         UI.I.ShowHud(true);
         Sfx.I.StartMusic();
@@ -244,12 +254,18 @@ public class Game : MonoBehaviour
 
     public static int Day() { var d = DateTime.UtcNow; return d.Year * 10000 + d.Month * 100 + d.Day; }
 
+    int specialGap;
     int Roll()
     {
         // early drops stay tiny; bigger ones come in once the jar has something to work with
         int max = Drops < 3 ? 3 : Snacks.DropTiers;
+        int r = rng.Next(0, 1000);   // always draw, so the daily sequence never shifts
+        specialGap++;
+        if (Drops >= 8 && specialGap > 9 && r < 90) { specialGap = 0; return r % 2 == 0 ? Snacks.PepperCode : Snacks.SprinkleCode; }
         return rng.Next(0, max);
     }
+    public int RandRange(int a, int b) => (monsterRng ?? (monsterRng = new System.Random())).Next(a, b);
+    public Vector3 LookTarget => held ? held.transform.position : new Vector3(0, H * 0.5f, 0);
 
     void SpawnHeld()
     {
@@ -264,6 +280,7 @@ public class Game : MonoBehaviour
         held.transform.position = new Vector3(aimX, DropY, 0);
         held.EnablePhysics();
         held.Rb.linearVelocity = new Vector2(0, -2f);
+        if (held.Special != 0) WebBridge.Event(held.Special == Snacks.PepperCode ? "drop_pepper" : "drop_sprinkle");
         Items.Add(held);
         held = null;
         Drops++;
@@ -284,6 +301,54 @@ public class Game : MonoBehaviour
         var vel = (a.Rb.linearVelocity + b.Rb.linearVelocity) / 2f;
         Items.Remove(a); Items.Remove(b);
         Destroy(a.gameObject); Destroy(b.gameObject);
+        MergeInto(t, pos, vel);
+    }
+
+    // A sprinkle cupcake fuses with whatever it touched, bumping that snack one tier up.
+    public void MergeWild(Item sprinkle, Item other)
+    {
+        if (State != St.Play || sprinkle.Merging || other.Merging) return;
+        sprinkle.Merging = other.Merging = true;
+        var pos = other.transform.position;
+        var vel = other.Rb ? other.Rb.linearVelocity : Vector2.zero;
+        Items.Remove(sprinkle); Items.Remove(other);
+        FX.Confetti(pos, 30);
+        Destroy(sprinkle.gameObject); Destroy(other.gameObject);
+        WebBridge.Event("sprinkle_merge", other.Tier);
+        MergeInto(other.Tier, pos, vel);
+    }
+
+    // A hot pepper goes off: small snacks nearby pop, everything else gets shoved.
+    public void Blast(Item pepper)
+    {
+        if (!pepper || State != St.Play) return;
+        var c = (Vector2)pepper.transform.position;
+        Items.Remove(pepper);
+        Destroy(pepper.gameObject);
+        FX.Burst(c, Snacks.Pepper.color, 50, 1.5f); FX.Burst(c, Kit.Hex("#FFD84A"), 30, 1.1f);
+        Sfx.I.Boom(); Shake(0.6f); WebBridge.Vibrate(60);
+        int popped = 0;
+        for (int i = Items.Count - 1; i >= 0; i--)
+        {
+            var it = Items[i];
+            if (!it || it.Merging || !it.Rb) continue;
+            var d = (Vector2)it.transform.position - c; float dist = d.magnitude;
+            if (dist > 2.4f) continue;
+            if (it.Special == 0 && it.Tier <= 2 && dist < 1.6f + it.R)
+            {
+                FX.Burst(it.transform.position, it.Color, 12, 0.6f);
+                Items.RemoveAt(i); Destroy(it.gameObject); popped++;
+                continue;
+            }
+            it.Rb.AddForce(d.normalized * (7f - dist * 2f) * it.Rb.mass + Vector2.up * 2f * it.Rb.mass, ForceMode2D.Impulse);
+        }
+        if (popped > 0) AddScore(popped * 15, c, "KABOOM! x" + popped);
+        WebBridge.Event("pepper_blast", popped);
+    }
+
+    // Shared by normal merges and sprinkle merges: make tier t+1 at pos (or the watermelon jackpot).
+    void MergeInto(int t, Vector3 pos, Vector2 vel)
+    {
         var def = Snacks.All[t];
         if (State != St.Play)
         {
@@ -311,6 +376,16 @@ public class Game : MonoBehaviour
         Items.Add(it);
         int pts = Snacks.Points(nt) * mult;
         AddScore(pts, pos, Combo >= 2 ? "x" + Combo + " COMBO" : null);
+        // the monster's craving: it snatches the snack straight out of the jar
+        if (Monster.Wants(nt))
+        {
+            Items.Remove(it);
+            int bonus = Monster.Eat(it);
+            AddScore(bonus, pos + Vector3.up * 0.8f, "YUM! MEAL " + Monster.Meals);
+            WebBridge.Event("monster_fed", nt);
+            if (Monster.Meals == 1) WebBridge.Event("first_meal");
+            if (Save.tut == 2) { Save.tut = 3; Persist(); UI.I.Coach(null, false); UI.I.Banner("YUM!", "keep it fed for big points"); WebBridge.Event("tut_fed"); }
+        }
         FX.Burst(pos, Snacks.All[nt].color, 10 + nt * 3, 0.6f + nt * 0.12f);
         Sfx.I.Merge(nt, Combo);
         if (nt >= 6) Shake(0.15f + nt * 0.04f);
@@ -320,7 +395,7 @@ public class Game : MonoBehaviour
         {
             Save.tut = 2; Persist();
             UI.I.Coach(null, false);
-            UI.I.Banner("NICE MERGE!", "keep matching to grow bigger snacks");
+            UI.I.Banner("NICE MERGE!", "now feed the monster");
             WebBridge.Event("tut_merged");
         }
         bool fresh = (Save.discovered & (1 << nt)) == 0;
@@ -342,6 +417,21 @@ public class Game : MonoBehaviour
     }
 
     public void Shake(float a) => shake = Mathf.Min(1f, shake + a);
+
+    // The monster's first craving of a new player's first game gets a coach mark.
+    public void OnCraving()
+    {
+        if (State == St.Play && Save.tut == 2) UI.I.Coach("MERGE WHAT THE MONSTER WANTS!", false);
+    }
+
+    // A hungry monster stomps: a smaller, free shake.
+    public void MonsterStomp()
+    {
+        if (State != St.Play) return;
+        foreach (var it in Items) if (it && it.Rb) it.Rb.AddForce(new Vector2(UnityEngine.Random.Range(-1f, 1f) * 4f, UnityEngine.Random.Range(2f, 6f)) * it.Rb.mass, ForceMode2D.Impulse);
+        Shake(0.9f); Sfx.I.Shake();
+        WebBridge.Vibrate(80);
+    }
 
     // ------------------------------------------------------------------ powers
     public void UseShake()
@@ -377,7 +467,7 @@ public class Game : MonoBehaviour
         if (best == null || bd > 0.4f) return;
         Pops--; PopMode = false;
         Items.Remove(best);
-        FX.Burst(best.transform.position, Snacks.All[best.Tier].color, 24, 1f);
+        FX.Burst(best.transform.position, best.Color, 24, 1f);
         Sfx.I.Pop();
         Destroy(best.gameObject);
         UI.I.SetPowers();
@@ -392,7 +482,7 @@ public class Game : MonoBehaviour
             WebBridge.Event(WebBridge.AdsAvailable ? "continue_ad" : "continue_free");
             // clear everything poking above two thirds of the jar
             for (int i = Items.Count - 1; i >= 0; i--)
-                if (Items[i].Top > H * 0.62f) { FX.Burst(Items[i].transform.position, Snacks.All[Items[i].Tier].color, 14, 0.8f); Destroy(Items[i].gameObject); Items.RemoveAt(i); }
+                if (Items[i].Top > H * 0.62f) { FX.Burst(Items[i].transform.position, Items[i].Color, 14, 0.8f); Destroy(Items[i].gameObject); Items.RemoveAt(i); }
             foreach (var it in Items) if (it && it.Rb) it.Rb.simulated = true;
             overT = 0; State = St.Play; dropCd = 0.5f;
             if (held == null) SpawnHeld();
@@ -418,6 +508,9 @@ public class Game : MonoBehaviour
         }
         else if (Score > Save.best) { Save.best = Score; best = true; }
         if (MaxTier > Save.maxTier) Save.maxTier = MaxTier;
+        if (Meals > Save.bestMeals) Save.bestMeals = Meals;
+        Monster.Idle();
+        WebBridge.Event("over_meals", Meals);
         Persist();
         UI.I.ClearRank();
         WebBridge.RunSubmit(Daily ? "daily" : "classic", Score, Drops, MaxTier);
@@ -495,7 +588,7 @@ public class Game : MonoBehaviour
     void FitCamera()
     {
         float aspect = (float)Screen.width / Mathf.Max(1, Screen.height);
-        bool portrait = aspect < 0.9f;
+        bool portrait = aspect <= 1.05f;   // same cut-off as the HUD and the monster (UI.Landscape)
         // portrait: jar fills the width with room for the HUD above and powers below
         float needW = W + 1.6f, needH = portrait ? H + 6.4f : H + 3.9f;
         float size = Mathf.Max(needH / 2f, needW / 2f / aspect);
@@ -509,7 +602,7 @@ public class Game : MonoBehaviour
         Cam.transform.position = new Vector3(camX, cy, -20) + sh;
     }
 
-    public string ShareText() => "I scored " + Score.ToString("N0") + " in SNACK MERGE" + (Daily ? " (daily jar)" : "") + " and made a " + Snacks.All[MaxTier].name + "! Can you beat it?";
+    public string ShareText() => "I fed the SNACK MONSTER " + Meals + (Meals == 1 ? " meal" : " meals") + " and scored " + Score.ToString("N0") + (Daily ? " on today's daily jar" : "") + "! Can you beat it?";
 
     [Serializable] public class RankMsg { public int rank, total, best; public string error, mode; }
     public void OnRank(string json)
@@ -527,7 +620,7 @@ public class Game : MonoBehaviour
         if (!autoX.HasValue)
         {
             Item best = null;
-            foreach (var it in Items) if (it && it.Tier == CurTier && (best == null || it.transform.position.y > best.transform.position.y)) best = it;
+            foreach (var it in Items) if (it && it.Special == 0 && it.Tier == CurTier && (best == null || it.transform.position.y > best.transform.position.y)) best = it;
             if (best != null) autoX = best.transform.position.x;
             else
             {

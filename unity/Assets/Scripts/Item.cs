@@ -4,6 +4,8 @@ using UnityEngine;
 public class Item : MonoBehaviour
 {
     public int Tier;
+    public int Special;            // 0 normal, Snacks.PepperCode or Snacks.SprinkleCode
+    float fuse = -1f;              // hot pepper: seconds until it blows (starts on first contact)
     public Rigidbody2D Rb;
     public CircleCollider2D Col;
     public Transform Model;
@@ -14,17 +16,19 @@ public class Item : MonoBehaviour
     static int serials;
     static PhysicsMaterial2D mat;
 
-    public float R => Snacks.All[Tier].r;
+    public float R => Snacks.Def(Special != 0 ? Special : Tier).r;
+    public Color Color => Snacks.Def(Special != 0 ? Special : Tier).color;
     public float Top => transform.position.y + R;
 
     public static Item Create(int tier, Vector2 pos, Transform parent, bool physics)
     {
-        var def = Snacks.All[tier];
+        var def = Snacks.Def(tier);
         var go = new GameObject("snack_" + def.id);
         go.transform.SetParent(parent, false);
         go.transform.position = pos;
         var it = go.AddComponent<Item>();
-        it.Tier = tier;
+        it.Tier = tier < 0 ? -100 + tier : tier;   // specials never match a normal tier (or each other)
+        it.Special = tier < 0 ? tier : 0;
         it.Serial = ++serials;
         // model: fit its biggest face-on extent to the circle
         var m = Kit.Spawn(def.model, 1f, go.transform);
@@ -58,6 +62,14 @@ public class Item : MonoBehaviour
 
     void Update()
     {
+        if (fuse > 0)
+        {
+            fuse -= Time.deltaTime;
+            // the pepper swells and flickers before it goes
+            float k = 1f - Mathf.Clamp01(fuse / 0.7f);
+            if (Model) Model.localScale = Vector3.one * (1f + 0.25f * k + Mathf.Sin(Time.time * 50f) * 0.06f * k) * baseScale;
+            if (fuse <= 0) { fuse = -1f; Game.I.Blast(this); return; }
+        }
         if (pop > 0)
         {
             pop -= Time.deltaTime;
@@ -70,10 +82,22 @@ public class Item : MonoBehaviour
     void OnCollisionEnter2D(Collision2D c) => Touch(c);
     void OnCollisionStay2D(Collision2D c) => Touch(c);
 
+    float baseScale = 1f;
     void Touch(Collision2D c)
     {
         if (Merging) return;
         var o = c.collider.GetComponent<Item>();
+        if (Special == Snacks.PepperCode)
+        {
+            if (fuse < 0 && Dropped && Game.I.State == Game.St.Play) { fuse = 0.7f; if (Model) baseScale = Model.localScale.x; Sfx.I.Fuse(); }
+            return;
+        }
+        if (Special == Snacks.SprinkleCode)
+        {
+            if (o != null && !o.Merging && o.Special == 0 && Game.I.State == Game.St.Play) Game.I.MergeWild(this, o);
+            return;
+        }
+        if (o != null && o.Special != 0) return;
         if (o == null || o.Merging || o.Tier != Tier) return;
         // the older item resolves the pair so it only merges once
         if (Serial > o.Serial) return;

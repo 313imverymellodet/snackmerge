@@ -23,3 +23,4 @@ node_modules/
 .vercel
 /dist-dev/
 /portals/
+/portal-art/raw/

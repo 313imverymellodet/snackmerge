@@ -8,7 +8,7 @@ public class Sfx : MonoBehaviour
     const float TAU = Mathf.PI * 2f;
     AudioSource[] voices; int next;
     AudioSource music;
-    AudioClip drop, merge, jackpot, discover, shake, pop, warn, over, click;
+    AudioClip drop, merge, jackpot, discover, shake, pop, warn, over, click, slurp, nom, grumble, think, fuse, boom;
     public bool Muted { get; private set; }
     System.Random rnd = new System.Random(7);
     float N() => (float)(rnd.NextDouble() * 2 - 1);
@@ -50,6 +50,12 @@ public class Sfx : MonoBehaviour
     public void Warn() => Play(warn, 0.25f);
     public void Over() => Play(over, 0.6f);
     public void Click() => Play(click, 0.4f);
+    public void Slurp() => Play(slurp, 0.5f, Random.Range(0.95f, 1.08f));
+    public void Nom() => Play(nom, 0.6f, Random.Range(0.92f, 1.06f));
+    public void Grumble() => Play(grumble, 0.7f);
+    public void Think() => Play(think, 0.35f);
+    public void Fuse() => Play(fuse, 0.45f);
+    public void Boom() => Play(boom, 0.7f);
 
     static AudioClip Clip(string n, float[] d) { var c = AudioClip.Create(n, d.Length, 1, SR, false); c.SetData(d, 0); return c; }
     delegate float Gen(float t, float dt);
@@ -90,6 +96,19 @@ public class Sfx : MonoBehaviour
         over = Clip("over", R(1.1f, (t, dt) => { float f = t < 0.25f ? 392f : t < 0.5f ? 349.23f : t < 0.75f ? 311.13f : 261.63f; ph += TAU * f * dt; return (Mathf.Sin(ph) * 0.6f + (Mathf.Sin(ph) > 0 ? 0.12f : -0.12f)) * Mathf.Exp(-(t % 0.25f) * 4f) * (t < 0.75f ? 1f : Mathf.Exp(-(t - 0.75f) * 3f)); }));
         ph = 0;
         click = Clip("click", R(0.04f, (t, dt) => { ph += TAU * 1200 * dt; return Mathf.Sin(ph) * Mathf.Exp(-t * 90) * 0.6f; }));
+        // monster: a wet rising slurp, three chunky "nom"s, a low growl, a curious "hmm?"
+        ph = 0; lp = 0;
+        slurp = Clip("slurp", R(0.35f, (t, dt) => { lp += (N() - lp) * 0.25f; ph += TAU * Mathf.Lerp(180, 620, t / 0.35f) * dt; return (Mathf.Sin(ph) * 0.45f + lp * 0.35f) * Mathf.Sin(t / 0.35f * Mathf.PI); }));
+        ph = 0; lp = 0;
+        nom = Clip("nom", R(0.6f, (t, dt) => { float k = t % 0.2f; lp += (N() - lp) * 0.3f; ph += TAU * (150 + 90 * Mathf.Exp(-k * 25f)) * dt; return (Mathf.Sin(ph) * 0.7f + lp * 0.3f) * Mathf.Exp(-k * 14f); }));
+        ph = 0; lp = 0;
+        grumble = Clip("grumble", R(0.9f, (t, dt) => { lp += (N() - lp) * 0.08f; ph += TAU * (70 + Mathf.Sin(t * 18f) * 12f) * dt; float saw = (ph / TAU % 1f) * 2f - 1f; return (saw * 0.45f + lp * 0.8f) * Mathf.Min(1, t * 8f) * Mathf.Exp(-t * 1.6f); }));
+        ph = 0;
+        think = Clip("think", R(0.3f, (t, dt) => { ph += TAU * (t < 0.12f ? 520 : Mathf.Lerp(520, 780, (t - 0.12f) / 0.18f)) * dt; return Mathf.Sin(ph) * 0.5f * Mathf.Min(1, t * 40f) * Mathf.Exp(-t * 4f); }));
+        lp = 0;
+        fuse = Clip("fuse", R(0.7f, (t, dt) => { lp += (N() - lp) * 0.7f; return lp * 0.35f * (0.6f + 0.4f * Mathf.Sin(t * 90f)); }));
+        ph = 0; lp = 0; float lp2 = 0;
+        boom = Clip("boom", R(0.8f, (t, dt) => { lp += (N() - lp) * Mathf.Lerp(0.5f, 0.06f, t / 0.8f); lp2 += (lp - lp2) * 0.3f; ph += TAU * Mathf.Lerp(120, 40, Mathf.Sqrt(t / 0.8f)) * dt; return Mathf.Sin(ph) * 0.8f * Mathf.Exp(-t * 6f) + lp2 * 1.5f * Mathf.Exp(-t * 3.5f); }));
     }
 
     // 96 bpm cosy kitchen lo-fi: Fmaj7 - Em7 - Dm7 - Cmaj7, soft keys, brushed hats, round bass.

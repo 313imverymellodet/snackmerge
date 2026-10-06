@@ -30,7 +30,7 @@ mergeInto(LibraryManager.library, {
     var doShare = function () {
       if (!w.__smPending) return;
       var t = w.__smPending; w.__smPending = null;
-      if (navigator.share) navigator.share({ title: "SNACK MERGE", text: t, url: url }).catch(function () {});
+      if (navigator.share) navigator.share({ title: "SNACK MONSTER", text: t, url: url }).catch(function () {});
       else if (navigator.clipboard) navigator.clipboard.writeText(t + "\n" + url).then(function () { w.smToast && w.smToast("Copied! Paste it anywhere"); });
       if (w.SD && w.SD.track) w.SD.track("share", 0);
     };

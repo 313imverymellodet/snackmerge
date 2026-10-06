@@ -26,5 +26,13 @@ public static class Snacks
         new SnackDef { id = "watermelon", name = "WATERMELON", model = "Food/watermelon",      r = 1.80f, euler = new Vector3(-10, 40, 0), color = Kit.Hex("#4FD36A") },
     };
     public const int DropTiers = 5;          // only the five smallest are ever dropped
+
+    // Special drops (tier codes -1 and -2 in the drop queue):
+    //   HOT PEPPER blows up shortly after it lands, popping small snacks and shoving the rest.
+    //   SPRINKLE CUPCAKE merges with whatever it touches first, bumping that snack up a tier.
+    public const int PepperCode = -1, SprinkleCode = -2;
+    public static readonly SnackDef Pepper = new SnackDef { id = "pepper", name = "HOT PEPPER", model = "Food/pepper", r = 0.45f, euler = new Vector3(-10, 30, 15), color = Kit.Hex("#E8343A") };
+    public static readonly SnackDef Sprinkle = new SnackDef { id = "cupcake", name = "SPRINKLE CUPCAKE", model = "Food/cupcake", r = 0.46f, euler = new Vector3(-12, 25, 0), color = Kit.Hex("#FF8FC8") };
+    public static SnackDef Def(int code) => code == PepperCode ? Pepper : code == SprinkleCode ? Sprinkle : All[code];
     public static int Points(int tier) => (tier + 1) * (tier + 2);   // made by merging into `tier`
 }

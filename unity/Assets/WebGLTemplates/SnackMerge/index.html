@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>SNACK MERGE — drop, match, merge!</title>
-  <meta name="description" content="Drop snacks into the jar and merge two of a kind into bigger ones - cherries to watermelon. Daily jar challenge and world leaderboards. Free, no download.">
+  <title>SNACK MONSTER — merge snacks, feed the monster!</title>
+  <meta name="description" content="A hungry monster craves snacks. Drop and merge them in the jar to make what it wants before it gets grumpy. Daily jar challenge and world leaderboards. Free, no download.">
   <meta name="theme-color" content="#fff1e4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,8 +13,8 @@
   <link rel="icon" type="image/png" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="SNACK MERGE — drop, match, merge!">
-  <meta property="og:description" content="Merge snacks all the way to a watermelon. Beat today's daily jar - free, no download.">
+  <meta property="og:title" content="SNACK MONSTER — merge snacks, feed the monster!">
+  <meta property="og:description" content="Merge snacks to feed a hungry monster before it gets grumpy - free, no download.">
   <meta property="og:image" content="__SITE_URL__/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="__SITE_URL__/og.png">
@@ -33,7 +33,7 @@
     .ld3 { width: 40px; height: 40px; left: 86px; background: #7ed957; animation-delay: 1s; }
     .ld4 { width: 58px; height: 58px; left: 30px; background: #ff9a2e; animation-delay: 1.5s; }
     @keyframes fall { 0% { top: -70px; } 55% { top: calc(100% - 60px); } 62% { top: calc(100% - 66px); } 70%, 100% { top: calc(100% - 60px); opacity: 1; } }
-    h1 { margin: 26px 0 4px; font-size: 52px; font-weight: 900; font-style: italic; letter-spacing: 3px; color: #ff5e7e; text-shadow: 0 6px 0 #c98b5b; }
+    h1 { margin: 26px 0 4px; font-size: clamp(36px, 11vw, 52px); font-weight: 900; font-style: italic; letter-spacing: 3px; color: #ff5e7e; text-shadow: 0 6px 0 #c98b5b; }
     .tag { opacity: .75; font-weight: 800; letter-spacing: 3px; font-size: 13px; }
     .bar { width: 240px; height: 10px; border-radius: 10px; background: rgba(90,58,42,.14); margin-top: 28px; overflow: hidden; }
     .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffb833, #ff5e7e); transition: width .2s; border-radius: 10px; }
@@ -69,8 +69,8 @@
   <canvas id="unity-canvas" tabindex="-1"></canvas>
   <div id="loader">
     <div class="jar"><div class="ld ld1"></div><div class="ld ld2"></div><div class="ld ld3"></div><div class="ld ld4"></div></div>
-    <h1>SNACK MERGE</h1>
-    <div class="tag">DROP · MATCH · MERGE</div>
+    <h1>SNACK MONSTER</h1>
+    <div class="tag">MERGE · FEED · DON'T GET IT GRUMPY</div>
     <div class="bar"><i id="fill"></i></div>
     <div id="err"></div>
   </div>

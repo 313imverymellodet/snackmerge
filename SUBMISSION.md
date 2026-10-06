@@ -1,4 +1,4 @@
-# SNACK MERGE: portal submission kit
+# SNACK MONSTER (formerly SNACK MERGE): portal submission kit
 
 Everything needed to put SNACK MERGE on CrazyGames, Poki and GameDistribution.
 Developer accounts and submissions are yours to do. Each portal makes you accept its own terms.
@@ -53,26 +53,26 @@ Poki makes its own thumbnails during onboarding, so send them the 1920×1080 if 
 
 ## 4. Store listing copy
 
-**Title:** SNACK MERGE
+**Title:** SNACK MONSTER
 
 **Short description (≤ 100 chars):**
-Drop snacks in the jar and merge two of a kind, from cherries all the way to a watermelon!
+A hungry monster wants snacks! Merge them in the jar to make what it craves before it gets grumpy.
 
 **Description:**
-SNACK MERGE is a juicy drop-and-merge puzzle. Aim, drop, and watch two matching snacks squish into a bigger one: cherry → strawberry → lemon → apple → orange → donut → coconut → pizza → cake → pumpkin → WATERMELON.
+The Snack Monster is hungry, and it only wants one thing at a time. Drop snacks into the jar and merge two of a kind into bigger ones. When you make the snack in the monster's thought bubble, its tongue whips into the jar and gobbles it up: big points, and more room in the jar.
 
-Chain merges for combo points and try not to let the jar overflow. Stuck? SHAKE the jar to settle the pile, or POP any snack to clear space.
+Keep it waiting too long and it gets GRUMPY and stomps, shaking everything up. Every meal makes the monster bigger and its cravings fancier: from lemons to pizza to birthday cake.
 
-- Classic mode: go for your best score.
-- Daily Jar: the same snack order for everyone, every day. Climb the daily leaderboard.
-- Discover all 11 snacks.
+- HOT PEPPERS blow up small snacks around them. SPRINKLE CUPCAKES merge with anything.
+- Chain merges for combos, and merge two watermelons for the JACKPOT.
+- Daily Jar: the same snacks for everyone each day, with its own leaderboard.
 
 **Controls:**
 - Mouse: move to aim, click to drop.
 - Touch: drag to aim, let go to drop.
 - Esc: pause.
 
-**Tags / categories:** Puzzle, Merge, Casual, Physics, Fruit, Suika, Watermelon, Drop, 2048-style, Food, Relaxing, One-handed, Mobile
+**Tags / categories:** Puzzle, Merge, Casual, Physics, Monster, Food, Cute, One-handed, Mobile
 
 **Orientation:** both (portrait and landscape layouts).
 
@@ -85,6 +85,8 @@ Chain merges for combo points and try not to let the jar overflow. Stuck? SHAKE 
 ## 5. Portal steps
 
 ### CrazyGames
+**Resubmitting after the rejection:** reply to their email (or resubmit) and lead with what changed: "Reworked since the first submission: the core loop is now feeding a monster that craves specific snacks (its tongue grabs them out of the jar), with grumpy stomps and special pepper/sprinkle drops. New name, new art, new video."
+
 1. Create a developer account at developer.crazygames.com.
 2. Submit a new game as **HTML5**:
    - Upload `snackmerge-crazygames.zip`.

@@ -11,7 +11,7 @@ public class UI : MonoBehaviour
     Canvas canvas; CanvasScaler scaler;
     RectTransform root, hud, screens, pops;
     Font F => Kit.Font;
-    public static readonly Color Cocoa = Kit.Hex("#5A3A2A"), Berry = Kit.Hex("#FF5E7E"), Mint = Kit.Hex("#3FC79A"), Honey = Kit.Hex("#FFB833"),
+    public static readonly Color Grape = Kit.Hex("#8A5CF6"), Cocoa = Kit.Hex("#5A3A2A"), Berry = Kit.Hex("#FF5E7E"), Mint = Kit.Hex("#3FC79A"), Honey = Kit.Hex("#FFB833"),
         Cream = Kit.Hex("#FFF7EC"), Soft = new Color(0.35f, 0.23f, 0.16f, 0.7f), Panel = new Color(1f, 0.97f, 0.92f, 0.92f);
 
     // pointer for aiming/dropping (screen space)
@@ -157,10 +157,10 @@ public class UI : MonoBehaviour
             Txt(nb, "NEXT", 34, new Vector2(.5f, 1), new Vector2(0, -32), Soft);
             nextIcon = Img(nb, null, new Vector2(.5f, .5f), new Vector2(0, -16), new Vector2(170, 170));
             Btn(hud, "II", new Vector2(0, 1), new Vector2(95, -95), new Vector2(120, 120), Panel, Cocoa, () => ShowPause(), 50);
-            var eb = Box(hud, new Vector2(.5f, .5f), new Vector2(870, 250), new Vector2(380, 520), new Color(1, 1, 1, 0.55f));
+            var eb = Box(hud, new Vector2(.5f, .5f), new Vector2(870, -40), new Vector2(380, 520), new Color(1, 1, 1, 0.55f));   // below the monster
             for (int i = 0; i < Snacks.All.Length; i++) evo.Add(Img(eb, null, new Vector2(.5f, .5f), new Vector2((i % 3 - 1) * 112, 190 - (i / 3) * 112), new Vector2(100, 100)));
-            shakeBtn = PowerBtn(new Vector2(.5f, .5f), new Vector2(860, -150), "SHAKE", () => Game.I.UseShake(), out shakeText);
-            popBtn = PowerBtn(new Vector2(.5f, .5f), new Vector2(860, -310), "POP", () => Game.I.UsePop(), out popText);
+            shakeBtn = PowerBtn(new Vector2(.5f, .5f), new Vector2(860, -440), "SHAKE", () => Game.I.UseShake(), out shakeText);
+            popBtn = PowerBtn(new Vector2(.5f, .5f), new Vector2(860, -600), "POP", () => Game.I.UsePop(), out popText);
         }
         SetEvolution();
         bool playing = g != null && g.State == Game.St.Play;
@@ -186,7 +186,7 @@ public class UI : MonoBehaviour
         if (on) { SetNext(Game.I.NextTier); SetPowers(); SetEvolution(); }
     }
 
-    public void SetNext(int tier) { if (nextIcon) { nextIcon.sprite = Icon(Snacks.All[tier].id); nextIcon.rectTransform.localScale = Vector3.one * Mathf.Lerp(0.6f, 1f, tier / 4f); } }
+    public void SetNext(int tier) { if (nextIcon) { nextIcon.sprite = Icon(Snacks.Def(tier).id); nextIcon.rectTransform.localScale = Vector3.one * (tier < 0 ? 0.85f : Mathf.Lerp(0.6f, 1f, tier / 4f)); } }
 
     public void SetEvolution()
     {
@@ -216,7 +216,7 @@ public class UI : MonoBehaviour
         var g = Game.I;
         scoreText.text = g.Score.ToString("N0");
         int best = g.Daily ? (g.Save.bestDailyDay == Game.Day() ? g.Save.bestDaily : 0) : g.Save.best;
-        bestText.text = (g.Daily ? "DAILY BEST " : "BEST ") + Mathf.Max(best, g.Score).ToString("N0");
+        bestText.text = (g.Daily ? "DAILY BEST " : "BEST ") + Mathf.Max(best, g.Score).ToString("N0") + "   MEALS " + g.Meals;
         warnImg.color = new Color(1, 0.1f, 0.2f, warn * (0.35f + 0.25f * Mathf.Sin(Time.time * 12f)));
         if (Input.GetKeyDown(KeyCode.Escape)) ShowPause();
     }
@@ -338,6 +338,8 @@ public class UI : MonoBehaviour
         return p;
     }
 
+    void LateUpdate() { if (Game.I && Game.I.Dev && Input.GetKeyDown(KeyCode.H)) canvas.enabled = !canvas.enabled; }   // dev: clean captures
+
     public void ShowMenu()
     {
         ShowHud(false);
@@ -345,12 +347,12 @@ public class UI : MonoBehaviour
         var g = Game.I;
         var logo = Box(s, new Vector2(.5f, 1), new Vector2(0, -330), new Vector2(940, 430), Panel);
         Title(logo, "SNACK", -110, 170, Berry);
-        Title(logo, "MERGE", -265, 170, Honey);
+        Title(logo, "MONSTER", -265, 150, Grape);
         // a few snacks bobbing round the logo
         int[] deco = { 0, 3, 5, 7, 10 };
         Vector2[] at = { new Vector2(-400, 150), new Vector2(410, 160), new Vector2(-420, -150), new Vector2(430, -140), new Vector2(0, 230) };
         for (int i = 0; i < deco.Length; i++) { var im = Img(logo, Icon(Snacks.All[deco[i]].id), new Vector2(.5f, .5f), at[i], new Vector2(150, 150)); StartCoroutine(Bob(im.rectTransform, i)); }
-        Txt(s, "drop  -  match  -  merge  -  make a WATERMELON!", 34, new Vector2(.5f, 1), new Vector2(0, -600), Cocoa, TextAnchor.MiddleCenter, 1000);
+        Txt(s, "merge snacks  -  feed the monster  -  don't let it get grumpy!", 34, new Vector2(.5f, 1), new Vector2(0, -600), Cocoa, TextAnchor.MiddleCenter, 1000);
 
         var play = Btn(s, "PLAY", new Vector2(.5f, 0), new Vector2(0, 900), new Vector2(700, 190), Berry, Color.white, () => g.StartGame(false), 96);
         StartCoroutine(Pulse(play.transform));
@@ -376,10 +378,10 @@ public class UI : MonoBehaviour
         {
             "Aim with your finger or mouse,\nlet go (or click) to DROP",
             "Two of the same snack MERGE\ninto the next one up the ladder",
-            "Chain merges fast for COMBO points",
-            "Two WATERMELONS = JACKPOT!",
-            "Don't let snacks sit above the\nred line - the jar overflows!",
-            "SHAKE and POP save a messy jar.\nDAILY JAR: everyone gets the same snacks",
+            "The MONSTER craves one snack at a time.\nMerge it and the monster eats it: big points!",
+            "Keep it waiting and it gets GRUMPY\nand stomps the jar",
+            "HOT PEPPER blows up small snacks.\nSPRINKLE CUPCAKE merges with anything",
+            "Don't let snacks sit above the red line.\nSHAKE and POP save a messy jar",
         };
         for (int i = 0; i < rows.Length; i++)
         {
@@ -419,10 +421,14 @@ public class UI : MonoBehaviour
         Txt(s, g.Daily ? "DAILY JAR  -  " + DateTime.UtcNow.ToString("MMM d").ToUpper() : "CLASSIC", 36, new Vector2(.5f, 1), new Vector2(0, -540), Soft);
         rankText = Txt(s, "", 38, new Vector2(.5f, 1), new Vector2(0, -600), Mint, TextAnchor.MiddleCenter, 1000);
         if (lastRank != null) ApplyRank();
-        var mb = Box(s, new Vector2(.5f, 1), new Vector2(0, -790), new Vector2(620, 250), Panel);
+        // two stat cards: meals fed (the point of the game) and the biggest snack made
+        var fed = Box(s, new Vector2(.5f, 1), new Vector2(-235, -790), new Vector2(440, 250), Panel);
+        Txt(fed, "MEALS FED", 32, new Vector2(.5f, 1), new Vector2(0, -36), Soft);
+        var mt = Txt(fed, g.Meals.ToString(), 110, new Vector2(.5f, .5f), new Vector2(0, -24), Grape, TextAnchor.MiddleCenter, 400); mt.fontStyle = FontStyle.Italic; Outline(mt, 4, Color.white);
+        var mb = Box(s, new Vector2(.5f, 1), new Vector2(235, -790), new Vector2(440, 250), Panel);
         Txt(mb, "BIGGEST SNACK", 32, new Vector2(.5f, 1), new Vector2(0, -36), Soft);
-        Img(mb, Icon(Snacks.All[g.MaxTier].id), new Vector2(.5f, .5f), new Vector2(-150, -20), new Vector2(150, 150));
-        Txt(mb, Snacks.All[g.MaxTier].name, 50, new Vector2(.5f, .5f), new Vector2(90, -20), Cocoa, TextAnchor.MiddleCenter, 400).fontStyle = FontStyle.Italic;
+        Img(mb, Icon(Snacks.All[g.MaxTier].id), new Vector2(.5f, .5f), new Vector2(0, -6), new Vector2(120, 120));
+        Txt(mb, Snacks.All[g.MaxTier].name, 36, new Vector2(.5f, 0), new Vector2(0, 34), Cocoa, TextAnchor.MiddleCenter, 400).fontStyle = FontStyle.Italic;
 
         float y = 720;
         if (g.Continues > 0)

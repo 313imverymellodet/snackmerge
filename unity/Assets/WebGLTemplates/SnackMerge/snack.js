@@ -1,4 +1,4 @@
-// SNACK MERGE page side: daily + all-time leaderboard overlay and score submission.
+// SNACK MONSTER page side: daily + all-time leaderboard overlay and score submission.
 // Unity calls window.snack.*; results go back via SendMessage("Game", "OnRank", json).
 (function () {
   var qs = new URLSearchParams(location.search);
