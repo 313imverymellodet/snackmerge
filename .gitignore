@@ -26,3 +26,10 @@ node_modules/
 /portal-art/raw/
 
 portals/
+
+# Android builds and signing keys (never commit a keystore)
+/android/
+*.keystore
+*.jks
+*.aab
+*.apk

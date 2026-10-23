@@ -124,7 +124,7 @@ public class WebBridge : MonoBehaviour
     public static void Gameplay(bool on) { }
     public static void Event(string name, int value = 0) { }
     public static void Ready() { }
-    public static void Vibrate(int ms) { }
+    public static void Vibrate(int ms) => Mobile.Vibrate(ms);
     public static void RunStart(string mode) { }
     public static void RunSubmit(string mode, int score, int drops, int maxTier) { }
     public static void ShowBoard(string mode) { }

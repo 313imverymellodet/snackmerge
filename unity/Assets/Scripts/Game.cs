@@ -45,6 +45,7 @@ public class Game : MonoBehaviour
     {
         I = this;
         Application.targetFrameRate = -1;
+        Mobile.Init();
         QualitySettings.antiAliasing = 4; QualitySettings.pixelLightCount = 0;
 #if UNITY_WEBGL && !UNITY_EDITOR
         WebGLInput.captureAllKeyboardInput = false;
@@ -83,6 +84,7 @@ public class Game : MonoBehaviour
 
     // the jar keeps settling while you look away, so pause instead
     void OnApplicationFocus(bool f) { if (!f && State == St.Play && Time.timeScale > 0) UI.I.ShowPause(); }
+    void OnApplicationPause(bool p) { if (p && State == St.Play && Time.timeScale > 0) UI.I.ShowPause(); }
 
     public void Persist() { PlayerPrefs.SetString("sm_save", JsonUtility.ToJson(Save)); PlayerPrefs.Save(); }
 

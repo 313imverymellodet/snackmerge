@@ -128,6 +128,7 @@ public class UI : MonoBehaviour
         if (hud) Destroy(hud.gameObject);
         evo.Clear();
         hud = Fill("hud", root);
+        hud.gameObject.AddComponent<SafeArea>();   // notches and punch-hole cameras
         hud.SetSiblingIndex(2);
         landscapeHud = Landscape;
         var g = Game.I;
@@ -218,7 +219,6 @@ public class UI : MonoBehaviour
         int best = g.Daily ? (g.Save.bestDailyDay == Game.Day() ? g.Save.bestDaily : 0) : g.Save.best;
         bestText.text = (g.Daily ? "DAILY BEST " : "BEST ") + Mathf.Max(best, g.Score).ToString("N0") + "   MEALS " + g.Meals;
         warnImg.color = new Color(1, 0.1f, 0.2f, warn * (0.35f + 0.25f * Mathf.Sin(Time.time * 12f)));
-        if (Input.GetKeyDown(KeyCode.Escape)) ShowPause();
     }
 
     // floating "+120" at the merge point
@@ -304,9 +304,26 @@ public class UI : MonoBehaviour
         foreach (Transform c in screens) Destroy(c.gameObject);
         var s = Fill("screen", screens);
         if (dim) { var img = s.gameObject.AddComponent<Image>(); img.color = new Color(1f, 0.93f, 0.86f, 0.86f); }
-        return s;
+        // the tint covers the whole display; content sits inside the safe area
+        var safe = Fill("safe", s); safe.gameObject.AddComponent<SafeArea>();
+        return safe;
     }
-    public void CloseScreens() { foreach (Transform c in screens) Destroy(c.gameObject); rankText = null; }
+    public void CloseScreens() { foreach (Transform c in screens) Destroy(c.gameObject); rankText = null; Open = ""; }
+
+    // Which screen is up, for the Android back button.
+    string Open = "";
+    void Back()
+    {
+        var g = Game.I;
+        switch (Open)
+        {
+            case "pause": Time.timeScale = 1; CloseScreens(); WebBridge.Gameplay(true); break;
+            case "howto": g.Save.howto = true; g.Persist(); if (g.State == Game.St.Menu) ShowMenu(); else CloseScreens(); break;
+            case "over": g.Quit(); break;
+            case "menu": Mobile.MoveToBack(); break;
+            default: if (g.State == Game.St.Play) ShowPause(); break;
+        }
+    }
 
     IEnumerator Pop(RectTransform r, float delay = 0)
     {
@@ -338,12 +355,17 @@ public class UI : MonoBehaviour
         return p;
     }
 
-    void LateUpdate() { if (Game.I && Game.I.Dev && Input.GetKeyDown(KeyCode.H)) canvas.enabled = !canvas.enabled; }   // dev: clean captures
+    void LateUpdate()
+    {
+        if (Game.I && Game.I.Dev && Input.GetKeyDown(KeyCode.H)) canvas.enabled = !canvas.enabled;   // dev: clean captures
+        if (Game.I && Input.GetKeyDown(KeyCode.Escape)) Back();
+    }
 
     public void ShowMenu()
     {
         ShowHud(false);
         var s = Column(Screen(false));
+        Open = "menu";
         var g = Game.I;
         var logo = Box(s, new Vector2(.5f, 1), new Vector2(0, -330), new Vector2(940, 430), Panel);
         Title(logo, "SNACK", -110, 170, Berry);
@@ -360,9 +382,24 @@ public class UI : MonoBehaviour
         int dailyBest = g.Save.bestDailyDay == Game.Day() ? g.Save.bestDaily : 0;
         Btn(s, "DAILY JAR", new Vector2(.5f, 0), new Vector2(0, 640), new Vector2(700, 150), Mint, Color.white, () => g.StartGame(true), 64);
         Txt(s, "same snacks for everyone today" + (dailyBest > 0 ? "   -   your best " + dailyBest.ToString("N0") : ""), 30, new Vector2(.5f, 0), new Vector2(0, 535), Soft, TextAnchor.MiddleCenter, 1000);
-        Btn(s, "LEADERBOARD", new Vector2(.5f, 0), new Vector2(0, 400), new Vector2(700, 120), Honey, Cocoa, () => WebBridge.ShowBoard("daily"), 48);
-        Btn(s, "HOW TO PLAY", new Vector2(.5f, 0), new Vector2(-180, 250), new Vector2(340, 110), Panel, Cocoa, ShowHowTo, 36);
-        Btn(s, g.Save.muted ? "SOUND OFF" : "SOUND ON", new Vector2(.5f, 0), new Vector2(180, 250), new Vector2(340, 110), Panel, Cocoa, () => { g.ToggleMute(); ShowMenu(); }, 36);
+        if (Mobile.Native)
+        {
+            // the leaderboard lives on the website's server; the Play build is fully offline
+            Btn(s, "HOW TO PLAY", new Vector2(.5f, 0), new Vector2(-180, 400), new Vector2(340, 110), Panel, Cocoa, ShowHowTo, 36);
+            Btn(s, g.Save.muted ? "SOUND OFF" : "SOUND ON", new Vector2(.5f, 0), new Vector2(180, 400), new Vector2(340, 110), Panel, Cocoa, () => { g.ToggleMute(); ShowMenu(); }, 36);
+            bool hapticsOff = PlayerPrefs.GetInt("haptics_off", 0) == 1;
+            Btn(s, hapticsOff ? "VIBRATION OFF" : "VIBRATION ON", new Vector2(.5f, 0), new Vector2(0, 260), new Vector2(700, 110), Panel, Cocoa, () =>
+            {
+                PlayerPrefs.SetInt("haptics_off", hapticsOff ? 0 : 1); PlayerPrefs.Save();
+                Mobile.Vibrate(30); ShowMenu();
+            }, 36);
+        }
+        else
+        {
+            Btn(s, "LEADERBOARD", new Vector2(.5f, 0), new Vector2(0, 400), new Vector2(700, 120), Honey, Cocoa, () => WebBridge.ShowBoard("daily"), 48);
+            Btn(s, "HOW TO PLAY", new Vector2(.5f, 0), new Vector2(-180, 250), new Vector2(340, 110), Panel, Cocoa, ShowHowTo, 36);
+            Btn(s, g.Save.muted ? "SOUND OFF" : "SOUND ON", new Vector2(.5f, 0), new Vector2(180, 250), new Vector2(340, 110), Panel, Cocoa, () => { g.ToggleMute(); ShowMenu(); }, 36);
+        }
         int found = 0; for (int i = 0; i < Snacks.All.Length; i++) if ((g.Save.discovered & (1 << i)) != 0) found++;
         Txt(s, "SNACKS DISCOVERED  " + found + " / " + Snacks.All.Length, 30, new Vector2(.5f, 0), new Vector2(0, 140), Soft, TextAnchor.MiddleCenter, 1000);
     }
@@ -370,6 +407,7 @@ public class UI : MonoBehaviour
     public void ShowHowTo()
     {
         var s = Column(Screen());
+        Open = "howto";
         Title(s, "HOW TO PLAY", -220, 104, Berry);
         // the ladder
         var lad = Box(s, new Vector2(.5f, 1), new Vector2(0, -480), new Vector2(980, 260), Panel);
@@ -404,6 +442,7 @@ public class UI : MonoBehaviour
         Time.timeScale = 0;
         WebBridge.Gameplay(false);
         var s = Column(Screen());
+        Open = "pause";
         Title(s, "PAUSED", -560, 130, Berry);
         Btn(s, "RESUME", new Vector2(.5f, .5f), new Vector2(0, 160), new Vector2(600, 160), Mint, Color.white, () => { Time.timeScale = 1; CloseScreens(); WebBridge.Gameplay(true); }, 64);
         Btn(s, "RESTART", new Vector2(.5f, .5f), new Vector2(0, -40), new Vector2(600, 130), Panel, Cocoa, () => { Time.timeScale = 1; g.StartGame(g.Daily); }, 48);
@@ -414,6 +453,7 @@ public class UI : MonoBehaviour
     {
         ShowHud(false);
         var s = Column(Screen());
+        Open = "over";
         var g = Game.I;
         Title(s, best ? "NEW BEST!" : "JAR FULL!", -230, 120, best ? Mint : Berry);
         var big = Txt(s, g.Score.ToString("N0"), 160, new Vector2(.5f, 1), new Vector2(0, -420), Cocoa, TextAnchor.MiddleCenter, 1000);
@@ -441,6 +481,13 @@ public class UI : MonoBehaviour
         if (g.Continues <= 0) StartCoroutine(Pulse(again.transform));
         y -= 170;
         float rx = 0, mx = 240;
+        if (Mobile.Native)
+        {
+            // no online ranks in the Play build: share + menu side by side
+            Btn(s, "SHARE", new Vector2(.5f, 0), new Vector2(-180, y), new Vector2(340, 120), Panel, Cocoa, () => Mobile.Share(g.ShareText(), "Share your score"), 40);
+            Btn(s, "MENU", new Vector2(.5f, 0), new Vector2(180, y), new Vector2(340, 120), Panel, Cocoa, () => g.Quit(), 40);
+            return;
+        }
         if (!WebBridge.OnPortal)
         {
             var share = Btn(s, "SHARE", new Vector2(.5f, 0), new Vector2(-240, y), new Vector2(220, 120), Panel, Cocoa, () => { }, 40);
