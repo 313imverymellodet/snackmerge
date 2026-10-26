@@ -205,8 +205,9 @@ public class UI : MonoBehaviour
     {
         var g = Game.I;
         bool ads = WebBridge.AdsAvailable;
-        shakeText.text = g.Shakes > 0 ? g.Shakes.ToString() : ads ? "AD" : "0";
-        popText.text = g.Pops > 0 ? g.Pops.ToString() : ads ? "AD" : "0";
+        string adTag = Ads.AdFree ? "FREE" : "AD";
+        shakeText.text = g.Shakes > 0 ? g.Shakes.ToString() : ads ? adTag : "0";
+        popText.text = g.Pops > 0 ? g.Pops.ToString() : ads ? adTag : "0";
         shakeText.fontSize = g.Shakes > 0 ? 36 : 24; popText.fontSize = g.Pops > 0 ? 36 : 24;
         popBtn.GetComponent<Image>().color = g.PopMode ? Berry : Honey;
         shakeBtn.GetComponent<Image>().color = g.Shakes > 0 || ads ? Honey : new Color(0.8f, 0.75f, 0.7f, 1f);
@@ -312,6 +313,13 @@ public class UI : MonoBehaviour
 
     // Which screen is up, for the Android back button.
     string Open = "";
+
+    // An ad loaded, the price arrived or the pass was bought: redraw what shows ad buttons.
+    public void AdsChanged()
+    {
+        if (Open == "menu") ShowMenu();
+        else if (Game.I.State == Game.St.Play && shakeText) SetPowers();
+    }
     void Back()
     {
         var g = Game.I;
@@ -388,11 +396,14 @@ public class UI : MonoBehaviour
             Btn(s, "HOW TO PLAY", new Vector2(.5f, 0), new Vector2(-180, 400), new Vector2(340, 110), Panel, Cocoa, ShowHowTo, 36);
             Btn(s, g.Save.muted ? "SOUND OFF" : "SOUND ON", new Vector2(.5f, 0), new Vector2(180, 400), new Vector2(340, 110), Panel, Cocoa, () => { g.ToggleMute(); ShowMenu(); }, 36);
             bool hapticsOff = PlayerPrefs.GetInt("haptics_off", 0) == 1;
-            Btn(s, hapticsOff ? "VIBRATION OFF" : "VIBRATION ON", new Vector2(.5f, 0), new Vector2(0, 260), new Vector2(700, 110), Panel, Cocoa, () =>
+            bool noAds = !Ads.AdFree && Ads.CanBuyRemoveAds;
+            Btn(s, hapticsOff ? "VIBRATION OFF" : "VIBRATION ON", new Vector2(.5f, 0), new Vector2(noAds ? -180 : 0, 260), new Vector2(noAds ? 340 : 700, 110), Panel, Cocoa, () =>
             {
                 PlayerPrefs.SetInt("haptics_off", hapticsOff ? 0 : 1); PlayerPrefs.Save();
                 Mobile.Vibrate(30); ShowMenu();
             }, 36);
+            if (noAds) Btn(s, "NO ADS  " + Ads.RemoveAdsPrice, new Vector2(.5f, 0), new Vector2(180, 260), new Vector2(340, 110), Honey, Cocoa, Ads.BuyRemoveAds, 36);
+            if (Ads.PrivacyOptionsRequired) Btn(s, "PRIVACY", new Vector2(.5f, 0), new Vector2(0, 60), new Vector2(300, 70), Panel, Soft, Ads.ShowPrivacyOptions, 28);
         }
         else
         {
@@ -473,7 +484,7 @@ public class UI : MonoBehaviour
         float y = 720;
         if (g.Continues > 0)
         {
-            var c = Btn(s, WebBridge.AdsAvailable ? "CONTINUE  (AD)" : "CONTINUE", new Vector2(.5f, 0), new Vector2(0, y), new Vector2(700, 150), Mint, Color.white, () => g.Continue(), 56);
+            var c = Btn(s, WebBridge.AdsAvailable && !Ads.AdFree ? "CONTINUE  (AD)" : "CONTINUE", new Vector2(.5f, 0), new Vector2(0, y), new Vector2(700, 150), Mint, Color.white, () => g.Continue(), 56);
             StartCoroutine(Pulse(c.transform));
             y -= 175;
         }

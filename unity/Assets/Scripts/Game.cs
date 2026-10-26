@@ -46,6 +46,8 @@ public class Game : MonoBehaviour
         I = this;
         Application.targetFrameRate = -1;
         Mobile.Init();
+        Ads.Init();
+        Ads.Changed += () => { if (UI.I) UI.I.AdsChanged(); };
         QualitySettings.antiAliasing = 4; QualitySettings.pixelLightCount = 0;
 #if UNITY_WEBGL && !UNITY_EDITOR
         WebGLInput.captureAllKeyboardInput = false;
