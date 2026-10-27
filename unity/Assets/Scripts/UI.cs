@@ -403,7 +403,9 @@ public class UI : MonoBehaviour
                 Mobile.Vibrate(30); ShowMenu();
             }, 36);
             if (noAds) Btn(s, "NO ADS  " + Ads.RemoveAdsPrice, new Vector2(.5f, 0), new Vector2(180, 260), new Vector2(340, 110), Honey, Cocoa, Ads.BuyRemoveAds, 36);
-            if (Ads.PrivacyOptionsRequired) Btn(s, "PRIVACY", new Vector2(.5f, 0), new Vector2(0, 60), new Vector2(300, 70), Panel, Soft, Ads.ShowPrivacyOptions, 28);
+            bool restore = Ads.ShowRestoreButton, privacy = Ads.PrivacyOptionsRequired;
+            if (restore) Btn(s, "RESTORE", new Vector2(.5f, 0), new Vector2(privacy ? -160 : 0, 60), new Vector2(300, 70), Panel, Soft, Ads.RestorePurchases, 28);
+            if (privacy) Btn(s, "PRIVACY", new Vector2(.5f, 0), new Vector2(restore ? 160 : 0, 60), new Vector2(300, 70), Panel, Soft, Ads.ShowPrivacyOptions, 28);
         }
         else
         {
