@@ -33,6 +33,8 @@ public class WebBridge : MonoBehaviour
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
             return SD_AdsAvailable() == 1;
+#elif UNITY_ANDROID && !UNITY_EDITOR
+            return Ads.Available || Ads.AdFree;
 #else
             return false;
 #endif
@@ -73,6 +75,8 @@ public class WebBridge : MonoBehaviour
         Event("rewarded_ask");
 #if UNITY_WEBGL && !UNITY_EDITOR
         SD_Rewarded(gameObject.name);
+#elif UNITY_ANDROID && !UNITY_EDITOR
+        Ads.ShowRewarded(ok => OnRewarded(ok ? "1" : "0"));
 #else
         OnRewarded("1");
 #endif
@@ -124,7 +128,7 @@ public class WebBridge : MonoBehaviour
     public static void Gameplay(bool on) { }
     public static void Event(string name, int value = 0) { }
     public static void Ready() { }
-    public static void Vibrate(int ms) { }
+    public static void Vibrate(int ms) => Mobile.Vibrate(ms);
     public static void RunStart(string mode) { }
     public static void RunSubmit(string mode, int score, int drops, int maxTier) { }
     public static void ShowBoard(string mode) { }
